@@ -1,0 +1,43 @@
+[gd_resource type="Resource" script_class="Biome" load_steps=7 format=3 uid="uid://bsfxhl2eehq0j"]
+
+[ext_resource type="Script" uid="uid://ctdfpwa4em8mg" path="res://Scripts/TerrainGeneration/Biome.cs" id="1_cj421"]
+[ext_resource type="Script" uid="uid://dcorc0ais187x" path="res://Scripts/TerrainGeneration/BiomeNoiseFunction.cs" id="1_fw26l"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_acusk"]
+noise_type = 0
+seed = 2
+frequency = 0.03
+fractal_type = 3
+fractal_octaves = 1
+fractal_weighted_strength = 0.03
+
+[sub_resource type="Resource" id="Resource_hr6dg"]
+script = ExtResource("1_fw26l")
+noise = SubResource("FastNoiseLite_acusk")
+scalar = 1.0
+offset = 0.35
+combineMode = 1
+metadata/_custom_type_script = "uid://dcorc0ais187x"
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_qgo0o"]
+noise_type = 0
+seed = 3
+frequency = 0.03
+fractal_type = 3
+fractal_octaves = 1
+fractal_weighted_strength = 0.03
+
+[sub_resource type="Resource" id="Resource_3yhdk"]
+script = ExtResource("1_fw26l")
+noise = SubResource("FastNoiseLite_qgo0o")
+scalar = 1.0
+offset = 0.35
+combineMode = 1
+metadata/_custom_type_script = "uid://dcorc0ais187x"
+
+[resource]
+script = ExtResource("1_cj421")
+name = "Winding Tunnels"
+noiseFunctions = Array[Object]([SubResource("Resource_hr6dg"), SubResource("Resource_3yhdk")])
+biomeWeights = PackedFloat32Array(-1, 0.5)
+metadata/_custom_type_script = "uid://ctdfpwa4em8mg"

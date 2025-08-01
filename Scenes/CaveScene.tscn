@@ -1,0 +1,69 @@
+[gd_scene load_steps=14 format=3 uid="uid://bmybmrg77xp36"]
+
+[ext_resource type="Script" uid="uid://cy5g87y75oqc0" path="res://Scripts/TerrainGeneration/TerrainGeneration.cs" id="1_0d8tv"]
+[ext_resource type="Resource" uid="uid://blpl3uw8a04y7" path="res://Resources/Biomes/BulbCaverns.tres" id="2_tkjes"]
+[ext_resource type="Resource" uid="uid://bpwbq1vnxgexg" path="res://Resources/Biomes/GridCaves.tres" id="3_esld4"]
+[ext_resource type="Resource" uid="uid://ci0805a3p3gdc" path="res://Resources/Biomes/PrismCoves.tres" id="4_j4raq"]
+[ext_resource type="Script" uid="uid://cdx51xvumlc5b" path="res://Scripts/TerrainGeneration/PointOfInterest.cs" id="5_h62w2"]
+[ext_resource type="Resource" uid="uid://bsfxhl2eehq0j" path="res://Resources/Biomes/WindingTunnels.tres" id="5_qwlrs"]
+[ext_resource type="Resource" uid="uid://fpthu8jv5byn" path="res://Resources/Biomes/TwistyBurrows.tres" id="6_hitnx"]
+[ext_resource type="PackedScene" uid="uid://fn61atnmcc56" path="res://Scenes/Player.tscn" id="6_qwlrs"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_4mqg7"]
+noise_type = 0
+seed = 6
+frequency = 0.0823
+fractal_type = 3
+fractal_octaves = 1
+fractal_lacunarity = 3.085
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_g0r03"]
+frequency = 0.005
+fractal_octaves = 1
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_jx4r4"]
+seed = 1
+frequency = 0.005
+fractal_octaves = 1
+
+[sub_resource type="Resource" id="Resource_arv4r"]
+script = ExtResource("5_h62w2")
+Name = ""
+randomizePosition = false
+Position = Vector3i(0, 0, 0)
+Description = ""
+leadsTo = PackedInt32Array(1)
+metadata/_custom_type_script = "uid://cdx51xvumlc5b"
+
+[sub_resource type="Resource" id="Resource_y1jas"]
+script = ExtResource("5_h62w2")
+Name = ""
+randomizePosition = false
+Position = Vector3i(100, 100, 100)
+Description = ""
+leadsTo = PackedInt32Array()
+metadata/_custom_type_script = "uid://cdx51xvumlc5b"
+
+[node name="Node3D" type="Node3D" node_paths=PackedStringArray("player")]
+script = ExtResource("1_0d8tv")
+seed = 1
+baseNoise = SubResource("FastNoiseLite_4mqg7")
+biomeNoises = Array[FastNoiseLite]([SubResource("FastNoiseLite_g0r03"), SubResource("FastNoiseLite_jx4r4")])
+biomes = Array[Object]([ExtResource("2_tkjes"), ExtResource("3_esld4"), ExtResource("4_j4raq"), ExtResource("5_qwlrs"), ExtResource("6_hitnx")])
+chunkSizeX = 20
+chunkSizeY = 20
+chunkSizeZ = 20
+floorHeight = 0.0
+tunnelWidth = 2
+pathStraightness = -0.9
+pointsOfInterest = [SubResource("Resource_arv4r"), SubResource("Resource_y1jas")]
+chunkDistance = 1
+player = NodePath("Player")
+
+[node name="Player" parent="." node_paths=PackedStringArray("terrainGeneration") instance=ExtResource("6_qwlrs")]
+airAcceleration = 0.1
+grapplePullSpeed = 20.0
+grapplePullAcceleration = 1.0
+grappleAscendSpeed = 3.0
+terraformSpeed = 1.0
+terrainGeneration = NodePath("..")

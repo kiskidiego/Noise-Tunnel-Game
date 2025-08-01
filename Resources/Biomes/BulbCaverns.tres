@@ -1,0 +1,56 @@
+[gd_resource type="Resource" script_class="Biome" load_steps=9 format=3 uid="uid://blpl3uw8a04y7"]
+
+[ext_resource type="Script" uid="uid://ctdfpwa4em8mg" path="res://Scripts/TerrainGeneration/Biome.cs" id="1_3mdqi"]
+[ext_resource type="Script" uid="uid://dcorc0ais187x" path="res://Scripts/TerrainGeneration/BiomeNoiseFunction.cs" id="1_rdo7n"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_bx0tr"]
+noise_type = 2
+frequency = 0.05
+fractal_type = 2
+fractal_octaves = 1
+
+[sub_resource type="Resource" id="Resource_k8y56"]
+script = ExtResource("1_rdo7n")
+noise = SubResource("FastNoiseLite_bx0tr")
+scalar = 1.0
+offset = 0.3
+combineMode = 0
+metadata/_custom_type_script = "uid://dcorc0ais187x"
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_dwbyw"]
+noise_type = 2
+seed = 1
+frequency = 0.05
+fractal_type = 2
+fractal_octaves = 1
+
+[sub_resource type="Resource" id="Resource_xpmnw"]
+script = ExtResource("1_rdo7n")
+noise = SubResource("FastNoiseLite_dwbyw")
+scalar = 1.0
+offset = 0.0
+combineMode = 0
+metadata/_custom_type_script = "uid://dcorc0ais187x"
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_ftpwo"]
+noise_type = 2
+seed = 2
+frequency = 0.06
+fractal_type = 2
+fractal_octaves = 1
+fractal_weighted_strength = 0.03
+
+[sub_resource type="Resource" id="Resource_xb02g"]
+script = ExtResource("1_rdo7n")
+noise = SubResource("FastNoiseLite_ftpwo")
+scalar = -1.0
+offset = -0.1
+combineMode = 1
+metadata/_custom_type_script = "uid://dcorc0ais187x"
+
+[resource]
+script = ExtResource("1_3mdqi")
+name = "Bulb Caverns"
+noiseFunctions = Array[Object]([SubResource("Resource_k8y56"), SubResource("Resource_xpmnw"), SubResource("Resource_xb02g")])
+biomeWeights = PackedFloat32Array(1, -1)
+metadata/_custom_type_script = "uid://ctdfpwa4em8mg"

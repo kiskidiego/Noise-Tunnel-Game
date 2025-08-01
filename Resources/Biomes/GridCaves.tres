@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="Biome" load_steps=5 format=3 uid="uid://bpwbq1vnxgexg"]
+
+[ext_resource type="Script" uid="uid://ctdfpwa4em8mg" path="res://Scripts/TerrainGeneration/Biome.cs" id="1_egl3x"]
+[ext_resource type="Script" uid="uid://dcorc0ais187x" path="res://Scripts/TerrainGeneration/BiomeNoiseFunction.cs" id="1_omnvw"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_uu64o"]
+noise_type = 5
+seed = 2
+frequency = 0.2237
+fractal_octaves = 1
+
+[sub_resource type="Resource" id="Resource_0a2oh"]
+script = ExtResource("1_omnvw")
+noise = SubResource("FastNoiseLite_uu64o")
+scalar = -1.0
+offset = 0.0
+combineMode = 0
+metadata/_custom_type_script = "uid://dcorc0ais187x"
+
+[resource]
+script = ExtResource("1_egl3x")
+name = "Grid Caves"
+noiseFunctions = Array[Object]([SubResource("Resource_0a2oh")])
+biomeWeights = PackedFloat32Array(1)
+metadata/_custom_type_script = "uid://ctdfpwa4em8mg"

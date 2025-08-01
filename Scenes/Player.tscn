@@ -1,0 +1,72 @@
+[gd_scene load_steps=5 format=3 uid="uid://fn61atnmcc56"]
+
+[ext_resource type="Script" uid="uid://d1hektfjepnr0" path="res://Scripts/Player.cs" id="1_rpqav"]
+[ext_resource type="Texture2D" uid="uid://lx5tf3gyet8l" path="res://Images/Reticle.png" id="2_kyqiw"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_rpqav"]
+radius = 0.25
+height = 1.0
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_rpqav"]
+top_radius = 0.01
+bottom_radius = 0.01
+height = 1.0
+radial_segments = 12
+rings = 1
+
+[node name="Player" type="CharacterBody3D" node_paths=PackedStringArray("camRotator", "grappleOrigin", "interactionRay", "hookRay", "grapplingHookMesh")]
+collision_layer = 2
+floor_max_angle = 1.0472
+script = ExtResource("1_rpqav")
+airAcceleration = 1.0
+airDrag = 1.0
+camRotator = NodePath("CameraRotator")
+grappleOrigin = NodePath("CameraRotator/Camera3D/GrappleOrigin")
+interactionRay = NodePath("CameraRotator/Camera3D/InteractionRay")
+hookRay = NodePath("CameraRotator/Camera3D/GrapplePullRay")
+grapplingHookMesh = NodePath("CameraRotator/Camera3D/GrappleOrigin/GrappleMesh")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("CapsuleShape3D_rpqav")
+
+[node name="CameraRotator" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+
+[node name="Camera3D" type="Camera3D" parent="CameraRotator"]
+
+[node name="SpotLight3D" type="SpotLight3D" parent="CameraRotator/Camera3D"]
+light_energy = 3.0
+spot_range = 25.0
+
+[node name="InteractionRay" type="RayCast3D" parent="CameraRotator/Camera3D"]
+target_position = Vector3(0, 0, -5)
+debug_shape_custom_color = Color(1, 0, 0, 1)
+debug_shape_thickness = 4
+
+[node name="GrapplePullRay" type="RayCast3D" parent="CameraRotator/Camera3D"]
+target_position = Vector3(0, 0, -15)
+debug_shape_custom_color = Color(0, 0, 1, 1)
+
+[node name="GrappleOrigin" type="Node3D" parent="CameraRotator/Camera3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, -0.2, 0)
+
+[node name="GrappleMesh" type="MeshInstance3D" parent="CameraRotator/Camera3D/GrappleOrigin"]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, -0.5)
+mesh = SubResource("CylinderMesh_rpqav")
+skeleton = NodePath("../../../..")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="TextureRect" type="TextureRect" parent="CanvasLayer"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -8.0
+offset_top = -8.0
+offset_right = 8.0
+offset_bottom = 8.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_kyqiw")
