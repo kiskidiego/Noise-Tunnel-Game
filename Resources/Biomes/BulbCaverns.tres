@@ -52,5 +52,5 @@ metadata/_custom_type_script = "uid://dcorc0ais187x"
 script = ExtResource("1_3mdqi")
 name = "Bulb Caverns"
 noiseFunctions = Array[Object]([SubResource("Resource_k8y56"), SubResource("Resource_xpmnw"), SubResource("Resource_xb02g")])
-biomeWeights = PackedFloat32Array(1, -1)
+biomeWeights = PackedFloat32Array(-1, -1, -1)
 metadata/_custom_type_script = "uid://ctdfpwa4em8mg"

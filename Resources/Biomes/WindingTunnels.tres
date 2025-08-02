@@ -39,5 +39,5 @@ metadata/_custom_type_script = "uid://dcorc0ais187x"
 script = ExtResource("1_cj421")
 name = "Winding Tunnels"
 noiseFunctions = Array[Object]([SubResource("Resource_hr6dg"), SubResource("Resource_3yhdk")])
-biomeWeights = PackedFloat32Array(-1, 0.5)
+biomeWeights = PackedFloat32Array(1, -1, -1)
 metadata/_custom_type_script = "uid://ctdfpwa4em8mg"

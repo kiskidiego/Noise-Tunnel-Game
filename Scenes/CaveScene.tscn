@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3 uid="uid://bmybmrg77xp36"]
+[gd_scene load_steps=15 format=3 uid="uid://bmybmrg77xp36"]
 
 [ext_resource type="Script" uid="uid://cy5g87y75oqc0" path="res://Scripts/TerrainGeneration/TerrainGeneration.cs" id="1_0d8tv"]
 [ext_resource type="Resource" uid="uid://blpl3uw8a04y7" path="res://Resources/Biomes/BulbCaverns.tres" id="2_tkjes"]
@@ -26,6 +26,11 @@ seed = 1
 frequency = 0.005
 fractal_octaves = 1
 
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_esld4"]
+seed = 2
+frequency = 0.005
+fractal_octaves = 1
+
 [sub_resource type="Resource" id="Resource_arv4r"]
 script = ExtResource("5_h62w2")
 Name = ""
@@ -46,9 +51,8 @@ metadata/_custom_type_script = "uid://cdx51xvumlc5b"
 
 [node name="Node3D" type="Node3D" node_paths=PackedStringArray("player")]
 script = ExtResource("1_0d8tv")
-seed = 1
 baseNoise = SubResource("FastNoiseLite_4mqg7")
-biomeNoises = Array[FastNoiseLite]([SubResource("FastNoiseLite_g0r03"), SubResource("FastNoiseLite_jx4r4")])
+biomeNoises = Array[FastNoiseLite]([SubResource("FastNoiseLite_g0r03"), SubResource("FastNoiseLite_jx4r4"), SubResource("FastNoiseLite_esld4")])
 biomes = Array[Object]([ExtResource("2_tkjes"), ExtResource("3_esld4"), ExtResource("4_j4raq"), ExtResource("5_qwlrs"), ExtResource("6_hitnx")])
 chunkSizeX = 20
 chunkSizeY = 20

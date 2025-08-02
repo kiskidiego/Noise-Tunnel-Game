@@ -1,9 +1,14 @@
 using Godot;
 using System;
-using System.Reflection.Metadata;
 
 public partial class Player : CharacterBody3D
 {
+	private class GrapplePoint
+	{
+		public Vector3 position;
+		public GrapplePoint lastGrapplePoint;
+		public Vector3 grappleNormal; // Used to determine whether to go back to the last grapple point or not
+	}
 	[Export] float groundSpeed = 5.0f;
 	[Export] float acceleration = 5.0f; // How fast the player accelerates to max speed
 	[Export] float drag = 5.0f; // How fast the player decelerates to a stop
@@ -14,6 +19,7 @@ public partial class Player : CharacterBody3D
 	[Export] float grapplePullAcceleration = 5.0f; // Acceleration applied when pulling with the grappling hook
 	[Export] float grapplePullBreakDistance = 1.0f; // Distance at which the grapple pull breaks
 	[Export] float grappleAscendSpeed = 0.1f; // Speed at which the player ascends while grappling
+	[Export] float maxGrappleExtension = 30.0f; // Maximum distance the grappling hook can extend
 	[Export] float cameraSensitivity = 0.01f;
 	[Export] float terraformSpeed = 0.1f;
 	[Export] int terraformRadius = 1;
@@ -27,7 +33,7 @@ public partial class Player : CharacterBody3D
 	bool isGrapplePulling = false; // Flag to indicate if the player is currently pulling with the grappling hook
 	bool isGrappleAscending = false; // Flag to indicate if the player is currently ascending with the grappling hook
 	bool isGrappleDescending = false; // Flag to indicate if the player is currently descending with the grappling hook
-	Vector3 grapplePoint = Vector3.Zero;
+	GrapplePoint grapplePoint = new GrapplePoint();
 	float grappleSwingLength;
 	float airSpeed; // Max speed while in the air
 	public override void _Ready()
@@ -81,10 +87,112 @@ public partial class Player : CharacterBody3D
 		MoveAndSlide();
 		HandleCollisions();
 	}
+
+	Vector3? Raycast(Vector3 from, Vector3 to)
+	{
+		PhysicsRayQueryParameters3D rayParameters = new PhysicsRayQueryParameters3D
+		{
+			From = from,
+			To = to,
+			Exclude = new Godot.Collections.Array<Rid> { GetRid() } // Exclude the player from the query
+		};
+		rayParameters.CollideWithAreas = false;
+		rayParameters.CollideWithBodies = true;
+		var spaceState = GetWorld3D().DirectSpaceState;
+		var result = spaceState.IntersectRay(rayParameters);
+		if (result.Count > 0)
+		{
+			return result["position"].AsVector3(); // Convert Variant to Vector3
+		}
+		return null; // Return null if no collision
+	}
+
+	bool VerifyGrapplePoint()
+	{
+		Vector3 grappleDirection = (grapplePoint.position - hookRay.GlobalPosition).Normalized();
+
+		Vector3? currentGrappleRayHit = Raycast(hookRay.GlobalPosition, grapplePoint.position + grappleDirection * 0.01f);
+
+		if (currentGrappleRayHit == null)	//IF GRAPPLE POINT NOT ON WALL
+		{
+			/* CHECK FOR REVERTING TO LAST GRAPPLE POINT (COMMENTED OUT FOR NOW)
+			GrapplePoint currentPoint = grapplePoint; // Store the current grapple point before updating
+			while (currentPoint.lastGrapplePoint != null)
+			{
+				Vector3 oldGrappleDirection = (currentPoint.lastGrapplePoint.position - hookRay.GlobalPosition).Normalized();
+				Vector3? lastGrappleRayHit = Raycast(hookRay.GlobalPosition, currentPoint.lastGrapplePoint.position + oldGrappleDirection * 0.1f);
+				if (lastGrappleRayHit != null && lastGrappleRayHit.Value.DistanceTo(currentPoint.lastGrapplePoint.position) < 0.1f)
+				{
+					grapplePoint = currentPoint.lastGrapplePoint; // Revert to the last grapple point
+					grappleSwingLength = GlobalPosition.DistanceTo(grapplePoint.position); // Update the swing length based on the last grapple point
+					return true; // Reverted to last grapple point successfully
+				}
+				currentPoint = currentPoint.lastGrapplePoint; // Move to the last grapple point
+			}
+			*/
+
+			if (isGrapplePulling)
+			{
+				StopGrapplePull();
+			}
+			if (isGrappleSwinging)
+			{
+				StopGrappleSwing();
+			}
+			return false; // No valid grapple point found, stop grappling
+		}
+
+		if (currentGrappleRayHit.Value.DistanceTo(grapplePoint.position) > 0.01f)	//IF NEW GRAPPLE POINT FOUND
+		{
+			GrapplePoint oldGrapplePoint = grapplePoint; // Store the current grapple point before updating
+			grapplePoint = new GrapplePoint
+			{
+				position = currentGrappleRayHit.Value,
+				lastGrapplePoint = oldGrapplePoint // Set the last grapple point to the previous one
+			};
+			grappleSwingLength = GlobalPosition.DistanceTo(grapplePoint.position); // Update the swing length based on the new grapple point
+
+			// Calculate grapple normal to determine later if we should revert to the last grapple point
+			Vector3 oldPosition = hookRay.GlobalPosition - Velocity; // Estimate the old position based on current velocity (Might need to multiply by delta)
+			Vector3 vectorToOldGrapple = oldGrapplePoint.position - oldPosition;
+			Vector3 vectorToNewGrapple = grapplePoint.position - oldPosition;
+
+			grapplePoint.grappleNormal = vectorToNewGrapple.Cross(vectorToOldGrapple).Normalized(); // Calculate the normal vector between the old and new grapple points
+
+			return true; // Valid grapple point found, continue grappling
+		}
+
+		if (grapplePoint.lastGrapplePoint != null)	//CHECK TO REVERT TO LAST GRAPPLE POINT
+		{
+			Vector3 oldGrappleDirection = (grapplePoint.lastGrapplePoint.position - hookRay.GlobalPosition).Normalized();
+			Vector3? lastGrappleRayHit = Raycast(hookRay.GlobalPosition, grapplePoint.lastGrapplePoint.position + oldGrappleDirection * 0.1f);
+			if (lastGrappleRayHit != null && lastGrappleRayHit.Value.DistanceTo(grapplePoint.lastGrapplePoint.position) < 0.1f)
+			{
+				// Grapple Normal check to see if we should revert to the last grapple point
+				Vector3 vectorToLastGrapple = grapplePoint.lastGrapplePoint.position - hookRay.GlobalPosition;
+				Vector3 vectorToCurrentGrapple = grapplePoint.position - hookRay.GlobalPosition;
+				Vector3 grappleNormal = vectorToCurrentGrapple.Cross(vectorToLastGrapple).Normalized();
+				if (grappleNormal.Dot(grapplePoint.grappleNormal) > 0)
+				{
+					grapplePoint = grapplePoint.lastGrapplePoint; // Revert to the last grapple point
+					grappleSwingLength = GlobalPosition.DistanceTo(grapplePoint.position); // Update the swing length based on the last grapple point
+					return true; // Reverted to last grapple point successfully
+				}
+				//GD.Print("Grapple Normal check failed, not reverting to last grapple point.");
+			}
+		}
+		return true; // No issues with the current grapple point, continue grappling
+	}
+
 	Vector3 HandleGrappleSwing(Vector3 velocity, double delta)
 	{
-		float pullFactor = GlobalPosition.DistanceTo(grapplePoint) / grappleSwingLength; // Calculate how far the player is from the grapple point
-		Vector3 grappleDirection = (grapplePoint - GlobalPosition).Normalized();
+		if (!VerifyGrapplePoint()) // Ensure the grapple point is valid
+		{
+			return velocity; // If not valid, return the original velocity
+		}
+
+		float pullFactor = GlobalPosition.DistanceTo(grapplePoint.position) / grappleSwingLength; // Calculate how far the player is from the grapple point
+		Vector3 grappleDirection = (grapplePoint.position - GlobalPosition).Normalized();
 		float velocityAgainstGrapple = velocity.Dot(grappleDirection);
 
 		if (isGrappleAscending)
@@ -99,7 +207,7 @@ public partial class Player : CharacterBody3D
 				return velocity; // Return early to avoid applying downward force
 			}
 		}
-		else if (isGrappleDescending)
+		else if (isGrappleDescending && GetFullGrappleLength() < maxGrappleExtension)
 		{
 			grappleSwingLength += grappleAscendSpeed * (float)delta; // Increase the swing length to simulate descending
 			if (velocityAgainstGrapple < 0)
@@ -119,7 +227,23 @@ public partial class Player : CharacterBody3D
 	}
 	Vector3 HandleGrapplePull(Vector3 velocity, double delta)
 	{
-		Vector3 grappleDirection = (grapplePoint - GlobalPosition).Normalized();
+		if (!VerifyGrapplePoint())
+		{
+			return velocity; // If not valid, return the original velocity
+		}
+
+		if (GlobalPosition.DistanceTo(grapplePoint.position) <= grapplePullBreakDistance)
+		{
+			if (grapplePoint.lastGrapplePoint != null)
+			{
+				grapplePoint = grapplePoint.lastGrapplePoint; // Revert to the last grapple point if within break distance
+			}
+			else
+			{
+				return velocity * 0.9f;
+			}
+		}
+		Vector3 grappleDirection = (grapplePoint.position - GlobalPosition).Normalized();
 		float deceleration = grapplePullAcceleration / grapplePullSpeed; // Deceleration factor based on grapple pull speed and max speed
 
 		velocity += grappleDirection * grapplePullAcceleration - velocity * deceleration; // Pull the player towards the collision point
@@ -174,15 +298,6 @@ public partial class Player : CharacterBody3D
 		int collisionCount = GetSlideCollisionCount();
 		if (collisionCount <= 0) return;
 
-		if (isGrapplePulling)
-		{
-			if (GlobalPosition.DistanceTo(grapplePoint) <= grapplePullBreakDistance)
-			{
-				StopGrapplePull(); // Stop grappling if a collision occurs
-				Velocity = Vector3.Zero; // Reset velocity to prevent movement during grapple pull
-			}
-		}
-
 		for (int i = 0; i < collisionCount; i++)
 		{
 
@@ -191,10 +306,10 @@ public partial class Player : CharacterBody3D
 	public override void _Process(double delta)
 	{
 		terrainGeneration.GenerateFrom(GlobalPosition);
-		HandleTerraforming(delta);
-		HandleGrapplingHook(delta);
+		HandleTerraformingInput(delta);
+		HandleGrapplingHookInput(delta);
 	}
-	void HandleTerraforming(double delta)
+	void HandleTerraformingInput(double delta)
 	{
 		if (Input.IsActionPressed("Break"))
 		{
@@ -217,13 +332,15 @@ public partial class Player : CharacterBody3D
 			}
 		}
 	}
-	void HandleGrapplingHook(double delta)
+	void HandleGrapplingHookInput(double delta)
 	{
+		isGrappleAscending = false; // Reset ascending flag
+		isGrappleDescending = false; // Reset descending flag
 		if (!isGrappleSwinging && Input.IsActionJustPressed("GrapplePull"))
 		{
 			if (hookRay.IsColliding())
 			{
-				grapplePoint = hookRay.GetCollisionPoint();
+				grapplePoint.position = hookRay.GetCollisionPoint();
 				StartGrapplePull();
 			}
 		}
@@ -235,8 +352,7 @@ public partial class Player : CharacterBody3D
 		{
 			if (hookRay.IsColliding())
 			{
-				grapplePoint = hookRay.GetCollisionPoint();
-				grappleSwingLength = grapplePoint.DistanceTo(GlobalPosition);
+				grapplePoint.position = hookRay.GetCollisionPoint();
 				StartGrappleSwing();
 			}
 		}
@@ -250,8 +366,6 @@ public partial class Player : CharacterBody3D
 		}
 		if (isGrappleSwinging)
 		{
-			isGrappleAscending = false; // Reset ascending flag
-			isGrappleDescending = false; // Reset descending flag
 			if (Input.IsActionPressed("Jump"))
 			{
 				isGrappleAscending = true; // Set the ascending flag
@@ -264,8 +378,8 @@ public partial class Player : CharacterBody3D
 	}
 	void DrawGrapplingHook()
 	{
-		grappleOrigin.LookAt(grapplePoint, Basis.Y); // Orient the mesh towards the grapple point
-		grappleOrigin.Scale = new Vector3(1.0f, 1.0f, grapplePoint.DistanceTo(grappleOrigin.Position)); // Scale the mesh based on distance to grapple point
+		grappleOrigin.LookAt(grapplePoint.position, Basis.Y); // Orient the mesh towards the grapple point
+		grappleOrigin.Scale = new Vector3(1.0f, 1.0f, grapplePoint.position.DistanceTo(grappleOrigin.Position)); // Scale the mesh based on distance to grapple point
 	}
 	void StartGrapplePull()
 	{
@@ -276,12 +390,14 @@ public partial class Player : CharacterBody3D
 	{
 		isGrapplePulling = false; // Reset the grapple pulling flag
 		grapplingHookMesh.Visible = false; // Hide the grappling hook mesh
+		grapplePoint = new GrapplePoint(); // Reset the grapple point
 	}
 	void StartGrappleSwing()
 	{
 		airSpeed = grapplePullSpeed;
 		isGrappleSwinging = true; // Set the grapple swinging flag
 		grapplingHookMesh.Visible = true; // Show the grappling hook mesh
+		grappleSwingLength = GlobalPosition.DistanceTo(grapplePoint.position); // Update the swing length based on the grapple point
 	}
 	void StopGrappleSwing()
 	{
@@ -290,5 +406,21 @@ public partial class Player : CharacterBody3D
 		grapplingHookMesh.Visible = false; // Hide the grappling hook mesh
 		isGrappleAscending = false; // Reset ascending flag
 		isGrappleDescending = false; // Reset descending flag
+		grapplePoint = new GrapplePoint(); // Reset the grapple point
+	}
+	float GetFullGrappleLength()
+	{
+		if(grapplePoint == null)
+		{
+			return 0.0f; // Return 0 if there is no grapple point
+		}
+		float length = GlobalPosition.DistanceTo(grapplePoint.position); // Start with the distance to the current grapple point
+		GrapplePoint currentPoint = grapplePoint;
+		while (currentPoint.lastGrapplePoint != null)
+		{
+			length += currentPoint.position.DistanceTo(currentPoint.lastGrapplePoint.position);
+			currentPoint = currentPoint.lastGrapplePoint; // Move to the last grapple point
+		}
+		return length; // Return the total length of the grapple chain
 	}
 }

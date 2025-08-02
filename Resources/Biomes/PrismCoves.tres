@@ -38,5 +38,5 @@ metadata/_custom_type_script = "uid://dcorc0ais187x"
 script = ExtResource("1_o0c38")
 name = "Prism Coves"
 noiseFunctions = Array[Object]([SubResource("Resource_5sya8"), SubResource("Resource_wpose")])
-biomeWeights = PackedFloat32Array(1, 0.5)
+biomeWeights = PackedFloat32Array(-1, 1, -1)
 metadata/_custom_type_script = "uid://ctdfpwa4em8mg"
