@@ -14,6 +14,11 @@ public partial class Biome : Resource
 	[Export] public string name;
 	[Export] BiomeNoiseFunction[] noiseFunctions;
 	[Export] public float[] biomeWeights;
+	[ExportGroup("BiomeTextures")]
+	[Export] public Texture2D baseColorTexture;
+	[Export] public Texture2D normalTexture;
+	[Export] public Texture2D roughnessTexture;
+	[Export] public Texture2D metallicTexture;
 	public int initNoiseFunctions(int seed)
 	{
 		int currentSeed = seed + 1;

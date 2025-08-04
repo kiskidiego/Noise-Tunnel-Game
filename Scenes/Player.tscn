@@ -1,4 +1,4 @@
-[gd_scene load_steps=5 format=3 uid="uid://fn61atnmcc56"]
+[gd_scene load_steps=6 format=3 uid="uid://fn61atnmcc56"]
 
 [ext_resource type="Script" uid="uid://d1hektfjepnr0" path="res://Scripts/Player.cs" id="1_rpqav"]
 [ext_resource type="Texture2D" uid="uid://lx5tf3gyet8l" path="res://Images/Reticle.png" id="2_kyqiw"]
@@ -6,6 +6,9 @@
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_rpqav"]
 radius = 0.25
 height = 1.0
+
+[sub_resource type="Environment" id="Environment_kyqiw"]
+background_energy_multiplier = 0.0
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_rpqav"]
 top_radius = 0.01
@@ -33,6 +36,7 @@ shape = SubResource("CapsuleShape3D_rpqav")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
 
 [node name="Camera3D" type="Camera3D" parent="CameraRotator"]
+environment = SubResource("Environment_kyqiw")
 
 [node name="SpotLight3D" type="SpotLight3D" parent="CameraRotator/Camera3D"]
 light_energy = 3.0

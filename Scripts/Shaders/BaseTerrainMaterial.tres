@@ -1,0 +1,7 @@
+[gd_resource type="ShaderMaterial" load_steps=2 format=3 uid="uid://b8d2nce0e0miq"]
+
+[ext_resource type="Shader" uid="uid://drxe0324hhwcv" path="res://Scripts/Shaders/BaseTerrainShader.gdshader" id="1_5t5ti"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_5t5ti")

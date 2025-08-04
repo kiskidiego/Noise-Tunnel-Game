@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using Array = Godot.Collections.Array;
 using System.Linq;
+using Godot.Collections;
+using Godot.NativeInterop;
 
 
 public partial class TerrainGeneration : Node
@@ -19,18 +21,53 @@ public partial class TerrainGeneration : Node
 	[Export] float pathStraightness = 0.6f; // How straight the paths should be, 1 is perfectly straight, 0 is completely random
 	[Export] PointOfInterest[] pointsOfInterest;
 	[Export] int chunkDistance = 2; // How many chunks away to generate
+	[Export] ShaderMaterial biomeBaseMaterial;
 	[Export] Player player;
 	ConcurrentDictionary<Vector3I, float[,,]> chunks = new ConcurrentDictionary<Vector3I, float[,,]>();
 	ConcurrentDictionary<Vector3I, bool> chunkGenerated = new ConcurrentDictionary<Vector3I, bool>();
 	ConcurrentDictionary<Vector3I, bool> chunkScored = new ConcurrentDictionary<Vector3I, bool>();
 	ConcurrentDictionary<Vector3I, MeshInstance3D> chunkMeshes = new ConcurrentDictionary<Vector3I, MeshInstance3D>();
+	ConcurrentDictionary<Vector3I, int[,,]> cellBiomes = new ConcurrentDictionary<Vector3I, int[,,]>();
 	RandomNumberGenerator rng = new RandomNumberGenerator();
 	Vector3I currentChunkCoords = new Vector3I(int.MaxValue, int.MaxValue, int.MaxValue);
 	bool generating = false;
 	bool firstGeneration = true; // Flag to indicate if this is the first generation
+	Texture2DArray colorTexture;
+	Texture2DArray normalTexture;
+	Texture2DArray roughnessTexture;
+	Texture2DArray metallicTexture;
 	public override void _Ready()
 	{
+		PrepareTextures();
 		Generate();
+	}
+	void PrepareTextures()
+	{
+		Array<Image> colorTextureArray = new Array<Image>();
+		Array<Image> normalTextureArray = new Array<Image>();
+		Array<Image> roughnessTextureArray = new Array<Image>();
+		Array<Image> metallicTextureArray = new Array<Image>();
+		foreach (Biome biome in biomes)
+		{
+			colorTextureArray.Add(biome.baseColorTexture?.GetImage());
+			normalTextureArray.Add(biome.normalTexture?.GetImage());
+			roughnessTextureArray.Add(biome.roughnessTexture?.GetImage());
+			metallicTextureArray.Add(biome.metallicTexture?.GetImage());
+		}
+		colorTexture = new Texture2DArray();
+		colorTexture.CreateFromImages(colorTextureArray);
+		normalTexture = new Texture2DArray();
+		normalTexture.CreateFromImages(normalTextureArray);
+		roughnessTexture = new Texture2DArray();
+		roughnessTexture.CreateFromImages(roughnessTextureArray);
+		metallicTexture = new Texture2DArray();
+		metallicTexture.CreateFromImages(metallicTextureArray);
+
+		biomeBaseMaterial.SetShaderParameter("colorTexture", colorTexture);
+		biomeBaseMaterial.SetShaderParameter("normalTexture", normalTexture);
+		biomeBaseMaterial.SetShaderParameter("roughnessTexture", roughnessTexture);
+		biomeBaseMaterial.SetShaderParameter("metallicTexture", metallicTexture);
+		biomeBaseMaterial.SetShaderParameter("biomeAmount", biomes.Length);
 	}
 	void Generate()
 	{
@@ -140,7 +177,8 @@ public partial class TerrainGeneration : Node
 		{
 			List<Vector3> vertices = new List<Vector3>();
 			List<Vector3> normals = new List<Vector3>();
-			MarchingCubesAlgorithm(chunk, vertices, normals);
+			List<Color> biomeValues = new List<Color>();
+			MarchingCubesAlgorithm(chunk, vertices, normals, biomeValues);
 			MeshInstance3D meshInstance = chunkMeshes.GetValueOrDefault(chunk, null);
 			//GD.Print($"Updating chunk {chunk} mesh instance: {(meshInstance != null ? "Exists" : "Does not exist")}");
 			if (meshInstance == null)
@@ -155,10 +193,12 @@ public partial class TerrainGeneration : Node
 			arrays.Resize((int)ArrayMesh.ArrayType.Max);
 			arrays[(int)ArrayMesh.ArrayType.Vertex] = vertices.ToArray();
 			arrays[(int)ArrayMesh.ArrayType.Normal] = normals.ToArray();
+			arrays[(int)Mesh.ArrayType.Color] = biomeValues.ToArray();
+
 			(meshInstance.Mesh as ArrayMesh).AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
 
-			meshInstance.Mesh.SurfaceSetMaterial(0, new StandardMaterial3D());
-			(meshInstance.Mesh.SurfaceGetMaterial(0) as StandardMaterial3D).VertexColorUseAsAlbedo = true;
+			meshInstance.Mesh.SurfaceSetMaterial(0, biomeBaseMaterial);
+			//(meshInstance.Mesh.SurfaceGetMaterial(0) as StandardMaterial3D).VertexColorUseAsAlbedo = true;
 
 			StaticBody3D staticBody = meshInstance.GetChild<StaticBody3D>(0);
 			if (staticBody == null)
@@ -194,7 +234,7 @@ public partial class TerrainGeneration : Node
 	{
 		await Task.Run(() =>
 		{
-			float currentTime = Time.GetTicksMsec();
+			//float currentTime = Time.GetTicksMsec();
 			for (int x = -chunkDistance - 1; x <= chunkDistance + 1; x++)
 			{
 				for (int y = -chunkDistance - 1; y <= chunkDistance + 1; y++)
@@ -207,11 +247,13 @@ public partial class TerrainGeneration : Node
 							continue; // Skip already scored chunks
 						}
 						chunkScored[coords] = true; // Mark chunk as scored
+						cellBiomes.TryAdd(coords, new int[chunkSizeX, chunkSizeY, chunkSizeZ]);
+						DetermineBiomes(coords);
 						GenerateNoiseCaves(coords);
 					}
 				}
 			}
-			float elapsedTime = Time.GetTicksMsec() - currentTime;
+			//float elapsedTime = Time.GetTicksMsec() - currentTime;
 			//GD.Print($"Noise caves generation took {elapsedTime} ms for chunk: {chunkCoords}");
 			for (int x = -chunkDistance; x <= chunkDistance; x++)
 			{
@@ -241,8 +283,9 @@ public partial class TerrainGeneration : Node
 	{
 		List<Vector3> vertices = new List<Vector3>();
 		List<Vector3> normals = new List<Vector3>();
-		MarchingCubesAlgorithm(chunkCoords, vertices, normals);
-		GenerateGeometry(chunkCoords, vertices, normals);
+		List<Color> biomeValues = new List<Color>();
+		MarchingCubesAlgorithm(chunkCoords, vertices, normals, biomeValues);
+		GenerateGeometry(chunkCoords, vertices, normals, biomeValues);
 	}
 	void PreparePointsOfInterest()
 	{
@@ -367,6 +410,44 @@ public partial class TerrainGeneration : Node
 			}
 		}
 	}
+	void DetermineBiomes(Vector3I chunkCoords)
+	{
+		//GD.Print($"Generating noise caves for chunk: {chunkCoords}");
+		float[,,] cells = GetChunk(chunkCoords.X, chunkCoords.Y, chunkCoords.Z);
+		int chunkPositionX = ChunkIndexToWorld(chunkCoords.X, chunkSizeX);
+		int chunkPositionY = ChunkIndexToWorld(chunkCoords.Y, chunkSizeY);
+		int chunkPositionZ = ChunkIndexToWorld(chunkCoords.Z, chunkSizeZ);
+		for (int x = 0; x < cells.GetLength(0); x++)
+		{
+			for (int y = 0; y < cells.GetLength(1); y++)
+			{
+				for (int z = 0; z < cells.GetLength(2); z++)
+				{
+					float[] biomeValues = new float[biomeNoises.Length];
+					for (int i = 0; i < biomeNoises.Length; i++)
+					{
+						biomeValues[i] = biomeNoises[i].GetNoise3D(x + chunkPositionX, y + chunkPositionY, z + chunkPositionZ);
+					}
+					int bestBiomeIndex = -1;
+					float minBiomeDeviation = float.MaxValue;
+					for (int i = 0; i < biomes.Length; i++)
+					{
+						float deviation = 0;
+						for (int j = 0; j < biomes[i].biomeWeights.Length; j++)
+						{
+							deviation += Mathf.Abs(biomeValues[j] - biomes[i].biomeWeights[j]);
+						}
+						if (deviation < minBiomeDeviation)
+						{
+							minBiomeDeviation = deviation;
+							bestBiomeIndex = i;
+						}
+					}
+					cellBiomes[chunkCoords][x, y, z] = bestBiomeIndex;
+				}
+			}
+		}
+	}
 	void GenerateNoiseCaves(Vector3I chunkCoords)
 	{
 		//GD.Print($"Generating noise caves for chunk: {chunkCoords}");
@@ -385,43 +466,20 @@ public partial class TerrainGeneration : Node
 						//GD.Print($"Skipping cell ({x}, {y}, {z}) at chunk: {chunkCoords} as it is already part of a path or cave.");
 						continue; // Skip if this cell is part of a path
 					}
-					float[] biomeValues = new float[biomeNoises.Length];
-					for (int i = 0; i < biomeNoises.Length; i++)
-					{
-						biomeValues[i] = biomeNoises[i].GetNoise3D(x + chunkPositionX, y + chunkPositionY, z + chunkPositionZ);
-					}
-					Biome biome = null;
-					float minBiomeDeviation = float.MaxValue;
-					for (int i = 0; i < biomes.Length; i++)
-					{
-						float maxDeviation = 0;
-						for (int j = 0; j < biomes[i].biomeWeights.Length; j++)
-						{
-							float deviation = Mathf.Abs(biomeValues[j] - biomes[i].biomeWeights[j]);
-							if (deviation > maxDeviation)
-							{
-								maxDeviation = deviation;
-							}
-						}
-						if (maxDeviation < minBiomeDeviation)
-						{
-							minBiomeDeviation = maxDeviation;
-							biome = biomes[i];
-						}
-					}
-
-					cells[x, y, z] = biome.GetNoiseValue(x + chunkPositionX, y + chunkPositionY, z + chunkPositionZ);
+					
+					cells[x, y, z] = biomes[cellBiomes[chunkCoords][x, y, z]].GetNoiseValue(x + chunkPositionX, y + chunkPositionY, z + chunkPositionZ);
 				}
 			}
 		}
 	}
-	void MarchingCubesAlgorithm(Vector3I chunkCoords, List<Vector3> vertices, List<Vector3> normals)
+	void MarchingCubesAlgorithm(Vector3I chunkCoords, List<Vector3> vertices, List<Vector3> normals, List<Color> biomeValues)
 	{
 		int chunkPositionX = ChunkIndexToWorld(chunkCoords.X, chunkSizeX);
 		int chunkPositionY = ChunkIndexToWorld(chunkCoords.Y, chunkSizeY);
 		int chunkPositionZ = ChunkIndexToWorld(chunkCoords.Z, chunkSizeZ);
 
 		float[,,] cells = new float[chunkSizeX + 2, chunkSizeY + 2, chunkSizeZ + 2];
+		int[,,] cellBiomeValues = new int[chunkSizeX + 2, chunkSizeY + 2, chunkSizeZ + 2];
 		for (int x = 0; x < chunkSizeX + 2; x++)
 		{
 			for (int y = 0; y < chunkSizeY + 2; y++)
@@ -429,9 +487,11 @@ public partial class TerrainGeneration : Node
 				for (int z = 0; z < chunkSizeZ + 2; z++)
 				{
 					cells[x, y, z] = GetCellFromWorld(chunkPositionX + x - 1, chunkPositionY + y - 1, chunkPositionZ + z - 1);
+					cellBiomeValues[x, y, z] = GetCellBiomeFromWorld(chunkPositionX + x - 1, chunkPositionY + y - 1, chunkPositionZ + z - 1);
 				}
 			}
 		}
+
 		//GD.Print($"Marching cubes algorithm started at chunk: {chunkCoords} with position: ({chunkPositionX}, {chunkPositionY}, {chunkPositionZ})");
 		//GD.Print("Marching cubes algorithm");
 		for (int i = 0; i < cells.GetLength(0) - 1; i++)
@@ -467,6 +527,7 @@ public partial class TerrainGeneration : Node
 					{
 						vertices = new List<Vector3>();
 						normals = new List<Vector3>();
+						biomeValues = new List<Color>();
 					}
 
 					Vector3[] edgeVertices = new Vector3[12];
@@ -528,17 +589,22 @@ public partial class TerrainGeneration : Node
 						normals.Add(normal);
 						normals.Add(normal);
 						normals.Add(normal);
+
+						biomeValues.Add(new Color(GetCellBiomeFromWorld(Mathf.RoundToInt(vertices[vertices.Count - 3].X), Mathf.RoundToInt(vertices[vertices.Count - 3].Y), Mathf.RoundToInt(vertices[vertices.Count - 3].Z)) / (float)biomes.Length, 0, 0, 1));
+						biomeValues.Add(new Color(GetCellBiomeFromWorld(Mathf.RoundToInt(vertices[vertices.Count - 2].X), Mathf.RoundToInt(vertices[vertices.Count - 2].Y), Mathf.RoundToInt(vertices[vertices.Count - 2].Z)) / (float)biomes.Length, 0, 0, 1));
+						biomeValues.Add(new Color(GetCellBiomeFromWorld(Mathf.RoundToInt(vertices[vertices.Count - 1].X), Mathf.RoundToInt(vertices[vertices.Count - 1].Y), Mathf.RoundToInt(vertices[vertices.Count - 1].Z)) / (float)biomes.Length, 0, 0, 1));
 					}
 				}
 			}
 		}
 		//GD.Print("Marching cubes algorithm done at chunk: " + chunk.index + vertices[0][0]);
 	}
+
 	Vector3 VertexInterpolation(Vector3 p1, Vector3 p2, float v1, float v2)
 	{
 		return p1 + (p2 - p1) * (floorHeight - v1) / (v2 - v1);
 	}
-	void GenerateGeometry(Vector3I chunkCoords, List<Vector3> vertices, List<Vector3> normals)
+	void GenerateGeometry(Vector3I chunkCoords, List<Vector3> vertices, List<Vector3> normals, List<Color> biomeValues)
 	{
 		//if (vertices.Count == 0) return;
 		//await Task.Delay(1); // Yield to the main thread to avoid blocking it
@@ -548,14 +614,15 @@ public partial class TerrainGeneration : Node
 		arrays.Resize((int)Mesh.ArrayType.Max);
 		arrays[(int)Mesh.ArrayType.Vertex] = vertices.ToArray();
 		arrays[(int)Mesh.ArrayType.Normal] = normals.ToArray();
+		arrays[(int)Mesh.ArrayType.Color] = biomeValues.ToArray();
 
 		MeshInstance3D meshInstance = new MeshInstance3D();
 		meshInstance.Mesh = new ArrayMesh();
 		(meshInstance.Mesh as ArrayMesh).AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
 
-		meshInstance.Mesh.SurfaceSetMaterial(0, new StandardMaterial3D());
+		meshInstance.Mesh.SurfaceSetMaterial(0, biomeBaseMaterial);
 
-		(meshInstance.Mesh.SurfaceGetMaterial(0) as StandardMaterial3D).VertexColorUseAsAlbedo = true;
+		//(meshInstance.Mesh.SurfaceGetMaterial(0) as StandardMaterial3D).VertexColorUseAsAlbedo = true;
 
 		CollisionShape3D collisionShape = new CollisionShape3D();
 
@@ -651,6 +718,21 @@ public partial class TerrainGeneration : Node
 			//GD.PrintErr($"GetCellFromWorld: Out of range for chunk ({chunkX}, {chunkY}, {chunkZ}) at offset ({offsetX}, {offsetY}, {offsetZ}), coordinates ({x}, {y}, {z})\nWorld to chunk index z: {z} / )");
 			return chunk[offsetX, offsetY, offsetZ];
 		}
+	}
+	int GetCellBiomeFromWorld(int x, int y, int z)
+	{
+		int chunkX = WorldToChunkIndex(x, chunkSizeX);
+		int chunkY = WorldToChunkIndex(y, chunkSizeY);
+		int chunkZ = WorldToChunkIndex(z, chunkSizeZ);
+		if (cellBiomes.TryGetValue(new Vector3I(chunkX, chunkY, chunkZ), out int[,,] biomes))
+		{
+			int offsetX = WorldToChunkOffset(x, chunkSizeX);
+			int offsetY = WorldToChunkOffset(y, chunkSizeY);
+			int offsetZ = WorldToChunkOffset(z, chunkSizeZ);
+			return biomes[offsetX, offsetY, offsetZ];
+		}
+		GD.PrintErr($"GetCellBiomeFromWorld: Biome not found for chunk ({chunkX}, {chunkY}, {chunkZ}) at offset ({WorldToChunkOffset(x, chunkSizeX)}, {WorldToChunkOffset(y, chunkSizeY)}, {WorldToChunkOffset(z, chunkSizeZ)}), coordinates ({x}, {y}, {z})");
+		return -1; // Return -1 if the biome is not found
 	}
 	void SetCellFromWorld(int x, int y, int z, float value)
 	{

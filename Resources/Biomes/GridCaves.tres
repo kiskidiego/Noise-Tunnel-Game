@@ -1,7 +1,11 @@
-[gd_resource type="Resource" script_class="Biome" load_steps=5 format=3 uid="uid://bpwbq1vnxgexg"]
+[gd_resource type="Resource" script_class="Biome" load_steps=9 format=3 uid="uid://bpwbq1vnxgexg"]
 
 [ext_resource type="Script" uid="uid://ctdfpwa4em8mg" path="res://Scripts/TerrainGeneration/Biome.cs" id="1_egl3x"]
 [ext_resource type="Script" uid="uid://dcorc0ais187x" path="res://Scripts/TerrainGeneration/BiomeNoiseFunction.cs" id="1_omnvw"]
+[ext_resource type="Texture2D" uid="uid://mevdtonhwgqk" path="res://Textures/Prism/baseColorTest2.png" id="1_oum70"]
+[ext_resource type="Texture2D" uid="uid://bjgtisrtlsv6d" path="res://Textures/Prism/metallic.png" id="2_7xxs2"]
+[ext_resource type="Texture2D" uid="uid://qtfw0fktqi6i" path="res://Textures/Prism/normalMap.png" id="4_ybb6q"]
+[ext_resource type="Texture2D" uid="uid://lqwa667jjggj" path="res://Textures/Prism/roughness.png" id="5_hrrox"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_uu64o"]
 noise_type = 5
@@ -22,4 +26,8 @@ script = ExtResource("1_egl3x")
 name = "Grid Caves"
 noiseFunctions = Array[Object]([SubResource("Resource_0a2oh")])
 biomeWeights = PackedFloat32Array(-1, -1, 1)
+baseColorTexture = ExtResource("1_oum70")
+normalTexture = ExtResource("4_ybb6q")
+roughnessTexture = ExtResource("5_hrrox")
+metallicTexture = ExtResource("2_7xxs2")
 metadata/_custom_type_script = "uid://ctdfpwa4em8mg"

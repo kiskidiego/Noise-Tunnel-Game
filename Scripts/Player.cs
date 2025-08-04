@@ -254,7 +254,7 @@ public partial class Player : CharacterBody3D
 	Vector3 HandleGroundedMovement(Vector3 velocity, double delta)
 	{
 		Vector2 inputDir = Input.GetVector("MovementLeft", "MovementRight", "MovementForward", "MovementBackward");
-		Vector3 direction = (camRotator.GlobalBasis * new Vector3(inputDir.X, 0, inputDir.Y)).Normalized();
+		Vector3 direction = (GlobalBasis * new Vector3(inputDir.X, 0, inputDir.Y)).Normalized();
 
 		float deceleration = acceleration / groundSpeed; // Deceleration factor based on acceleration and max speed
 
@@ -276,7 +276,7 @@ public partial class Player : CharacterBody3D
 	Vector3 HandleAerialMovement(Vector3 velocity, double delta)
 	{
 		Vector2 inputDir = Input.GetVector("MovementLeft", "MovementRight", "MovementForward", "MovementBackward");
-		Vector3 direction = (camRotator.GlobalBasis * new Vector3(inputDir.X, 0, inputDir.Y)).Normalized();
+		Vector3 direction = (GlobalBasis * new Vector3(inputDir.X, 0, inputDir.Y)).Normalized();
 
 		float deceleration = airAcceleration / airSpeed; // Deceleration factor for aerial movement
 
