@@ -6,7 +6,6 @@ using System.Collections.Concurrent;
 using Array = Godot.Collections.Array;
 using System.Linq;
 using Godot.Collections;
-using Godot.NativeInterop;
 
 
 public partial class TerrainGeneration : Node
@@ -32,10 +31,7 @@ public partial class TerrainGeneration : Node
 	Vector3I currentChunkCoords = new Vector3I(int.MaxValue, int.MaxValue, int.MaxValue);
 	bool generating = false;
 	bool firstGeneration = true; // Flag to indicate if this is the first generation
-	Texture2DArray colorTexture;
-	Texture2DArray normalTexture;
-	Texture2DArray roughnessTexture;
-	Texture2DArray metallicTexture;
+	
 	public override void _Ready()
 	{
 		PrepareTextures();
@@ -45,28 +41,23 @@ public partial class TerrainGeneration : Node
 	{
 		Array<Image> colorTextureArray = new Array<Image>();
 		Array<Image> normalTextureArray = new Array<Image>();
-		Array<Image> roughnessTextureArray = new Array<Image>();
-		Array<Image> metallicTextureArray = new Array<Image>();
+		Array<Image> metalRoughTextureArray = new Array<Image>();
 		foreach (Biome biome in biomes)
 		{
 			colorTextureArray.Add(biome.baseColorTexture?.GetImage());
 			normalTextureArray.Add(biome.normalTexture?.GetImage());
-			roughnessTextureArray.Add(biome.roughnessTexture?.GetImage());
-			metallicTextureArray.Add(biome.metallicTexture?.GetImage());
+			metalRoughTextureArray.Add(biome.metalRoughTexture?.GetImage());
 		}
-		colorTexture = new Texture2DArray();
+		Texture2DArray colorTexture = new Texture2DArray();
 		colorTexture.CreateFromImages(colorTextureArray);
-		normalTexture = new Texture2DArray();
+		Texture2DArray normalTexture = new Texture2DArray();
 		normalTexture.CreateFromImages(normalTextureArray);
-		roughnessTexture = new Texture2DArray();
-		roughnessTexture.CreateFromImages(roughnessTextureArray);
-		metallicTexture = new Texture2DArray();
-		metallicTexture.CreateFromImages(metallicTextureArray);
+		Texture2DArray metalRoughTexture = new Texture2DArray();
+		metalRoughTexture.CreateFromImages(metalRoughTextureArray);
 
 		biomeBaseMaterial.SetShaderParameter("colorTexture", colorTexture);
 		biomeBaseMaterial.SetShaderParameter("normalTexture", normalTexture);
-		biomeBaseMaterial.SetShaderParameter("roughnessTexture", roughnessTexture);
-		biomeBaseMaterial.SetShaderParameter("metallicTexture", metallicTexture);
+		biomeBaseMaterial.SetShaderParameter("metalRoughTexture", metalRoughTexture);
 		biomeBaseMaterial.SetShaderParameter("biomeAmount", biomes.Length);
 	}
 	void Generate()
@@ -178,7 +169,9 @@ public partial class TerrainGeneration : Node
 			List<Vector3> vertices = new List<Vector3>();
 			List<Vector3> normals = new List<Vector3>();
 			List<Color> biomeValues = new List<Color>();
-			MarchingCubesAlgorithm(chunk, vertices, normals, biomeValues);
+			List<float> biomeIndices = new List<float>();
+			MarchingCubesAlgorithm(chunk, vertices, normals, biomeValues, biomeIndices);
+			//InterpolateNormals(vertices, normals);
 			MeshInstance3D meshInstance = chunkMeshes.GetValueOrDefault(chunk, null);
 			//GD.Print($"Updating chunk {chunk} mesh instance: {(meshInstance != null ? "Exists" : "Does not exist")}");
 			if (meshInstance == null)
@@ -194,6 +187,7 @@ public partial class TerrainGeneration : Node
 			arrays[(int)ArrayMesh.ArrayType.Vertex] = vertices.ToArray();
 			arrays[(int)ArrayMesh.ArrayType.Normal] = normals.ToArray();
 			arrays[(int)Mesh.ArrayType.Color] = biomeValues.ToArray();
+			arrays[(int)Mesh.ArrayType.Tangent] = biomeIndices.ToArray();
 
 			(meshInstance.Mesh as ArrayMesh).AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
 
@@ -284,8 +278,10 @@ public partial class TerrainGeneration : Node
 		List<Vector3> vertices = new List<Vector3>();
 		List<Vector3> normals = new List<Vector3>();
 		List<Color> biomeValues = new List<Color>();
-		MarchingCubesAlgorithm(chunkCoords, vertices, normals, biomeValues);
-		GenerateGeometry(chunkCoords, vertices, normals, biomeValues);
+		List<float> biomeIndices = new List<float>();
+		MarchingCubesAlgorithm(chunkCoords, vertices, normals, biomeValues, biomeIndices);
+		//InterpolateNormals(vertices, normals);
+		GenerateGeometry(chunkCoords, vertices, normals, biomeValues, biomeIndices);
 	}
 	void PreparePointsOfInterest()
 	{
@@ -472,14 +468,13 @@ public partial class TerrainGeneration : Node
 			}
 		}
 	}
-	void MarchingCubesAlgorithm(Vector3I chunkCoords, List<Vector3> vertices, List<Vector3> normals, List<Color> biomeValues)
+	void MarchingCubesAlgorithm(Vector3I chunkCoords, List<Vector3> vertices, List<Vector3> normals, List<Color> biomeValues, List<float> biomeIndices)
 	{
 		int chunkPositionX = ChunkIndexToWorld(chunkCoords.X, chunkSizeX);
 		int chunkPositionY = ChunkIndexToWorld(chunkCoords.Y, chunkSizeY);
 		int chunkPositionZ = ChunkIndexToWorld(chunkCoords.Z, chunkSizeZ);
 
 		float[,,] cells = new float[chunkSizeX + 2, chunkSizeY + 2, chunkSizeZ + 2];
-		int[,,] cellBiomeValues = new int[chunkSizeX + 2, chunkSizeY + 2, chunkSizeZ + 2];
 		for (int x = 0; x < chunkSizeX + 2; x++)
 		{
 			for (int y = 0; y < chunkSizeY + 2; y++)
@@ -487,7 +482,6 @@ public partial class TerrainGeneration : Node
 				for (int z = 0; z < chunkSizeZ + 2; z++)
 				{
 					cells[x, y, z] = GetCellFromWorld(chunkPositionX + x - 1, chunkPositionY + y - 1, chunkPositionZ + z - 1);
-					cellBiomeValues[x, y, z] = GetCellBiomeFromWorld(chunkPositionX + x - 1, chunkPositionY + y - 1, chunkPositionZ + z - 1);
 				}
 			}
 		}
@@ -528,6 +522,7 @@ public partial class TerrainGeneration : Node
 						vertices = new List<Vector3>();
 						normals = new List<Vector3>();
 						biomeValues = new List<Color>();
+						biomeIndices = new List<float>();
 					}
 
 					Vector3[] edgeVertices = new Vector3[12];
@@ -590,9 +585,28 @@ public partial class TerrainGeneration : Node
 						normals.Add(normal);
 						normals.Add(normal);
 
-						biomeValues.Add(new Color(GetCellBiomeFromWorld(Mathf.RoundToInt(vertices[vertices.Count - 3].X), Mathf.RoundToInt(vertices[vertices.Count - 3].Y), Mathf.RoundToInt(vertices[vertices.Count - 3].Z)) / (float)biomes.Length, 0, 0, 1));
-						biomeValues.Add(new Color(GetCellBiomeFromWorld(Mathf.RoundToInt(vertices[vertices.Count - 2].X), Mathf.RoundToInt(vertices[vertices.Count - 2].Y), Mathf.RoundToInt(vertices[vertices.Count - 2].Z)) / (float)biomes.Length, 0, 0, 1));
-						biomeValues.Add(new Color(GetCellBiomeFromWorld(Mathf.RoundToInt(vertices[vertices.Count - 1].X), Mathf.RoundToInt(vertices[vertices.Count - 1].Y), Mathf.RoundToInt(vertices[vertices.Count - 1].Z)) / (float)biomes.Length, 0, 0, 1));
+						float vertex1Biome = GetCellBiomeFromWorld(Mathf.RoundToInt(vertices[vertices.Count - 3].X), Mathf.RoundToInt(vertices[vertices.Count - 3].Y), Mathf.RoundToInt(vertices[vertices.Count - 3].Z)) / (float)biomes.Length;
+						float vertex2Biome = GetCellBiomeFromWorld(Mathf.RoundToInt(vertices[vertices.Count - 2].X), Mathf.RoundToInt(vertices[vertices.Count - 2].Y), Mathf.RoundToInt(vertices[vertices.Count - 2].Z)) / (float)biomes.Length;
+						float vertex3Biome = GetCellBiomeFromWorld(Mathf.RoundToInt(vertices[vertices.Count - 1].X), Mathf.RoundToInt(vertices[vertices.Count - 1].Y), Mathf.RoundToInt(vertices[vertices.Count - 1].Z)) / (float)biomes.Length;
+
+						biomeValues.Add(new Color(vertex1Biome, vertex2Biome, vertex3Biome, 0f));
+						biomeValues.Add(new Color(vertex1Biome, vertex2Biome, vertex3Biome, 0f));
+						biomeValues.Add(new Color(vertex1Biome, vertex2Biome, vertex3Biome, 0f));
+
+						biomeIndices.Add(1f);
+						biomeIndices.Add(0f);
+						biomeIndices.Add(0f);
+						biomeIndices.Add(0f);
+
+						biomeIndices.Add(0f);
+						biomeIndices.Add(1f);
+						biomeIndices.Add(0f);
+						biomeIndices.Add(0f);
+
+						biomeIndices.Add(0f);
+						biomeIndices.Add(0f);
+						biomeIndices.Add(1f);
+						biomeIndices.Add(0f);
 					}
 				}
 			}
@@ -604,7 +618,7 @@ public partial class TerrainGeneration : Node
 	{
 		return p1 + (p2 - p1) * (floorHeight - v1) / (v2 - v1);
 	}
-	void GenerateGeometry(Vector3I chunkCoords, List<Vector3> vertices, List<Vector3> normals, List<Color> biomeValues)
+	void GenerateGeometry(Vector3I chunkCoords, List<Vector3> vertices, List<Vector3> normals, List<Color> biomeValues, List<float> biomeIndices)
 	{
 		//if (vertices.Count == 0) return;
 		//await Task.Delay(1); // Yield to the main thread to avoid blocking it
@@ -615,6 +629,7 @@ public partial class TerrainGeneration : Node
 		arrays[(int)Mesh.ArrayType.Vertex] = vertices.ToArray();
 		arrays[(int)Mesh.ArrayType.Normal] = normals.ToArray();
 		arrays[(int)Mesh.ArrayType.Color] = biomeValues.ToArray();
+		arrays[(int)Mesh.ArrayType.Tangent] = biomeIndices.ToArray();
 
 		MeshInstance3D meshInstance = new MeshInstance3D();
 		meshInstance.Mesh = new ArrayMesh();

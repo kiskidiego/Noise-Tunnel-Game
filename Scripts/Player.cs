@@ -150,7 +150,7 @@ public partial class Player : CharacterBody3D
 				position = currentGrappleRayHit.Value,
 				lastGrapplePoint = oldGrapplePoint // Set the last grapple point to the previous one
 			};
-			grappleSwingLength = GlobalPosition.DistanceTo(grapplePoint.position); // Update the swing length based on the new grapple point
+			grappleSwingLength -= grapplePoint.position.DistanceTo(oldGrapplePoint.position); // Update the swing length based on the new grapple point
 
 			// Calculate grapple normal to determine later if we should revert to the last grapple point
 			Vector3 oldPosition = hookRay.GlobalPosition - Velocity; // Estimate the old position based on current velocity (Might need to multiply by delta)

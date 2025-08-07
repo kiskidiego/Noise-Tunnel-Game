@@ -1,11 +1,10 @@
-[gd_resource type="Resource" script_class="Biome" load_steps=11 format=3 uid="uid://bsfxhl2eehq0j"]
+[gd_resource type="Resource" script_class="Biome" load_steps=10 format=3 uid="uid://bsfxhl2eehq0j"]
 
 [ext_resource type="Texture2D" uid="uid://mqnbdh7vk431" path="res://Materials/textures/CustomUVChecker_byValle_1K2.png" id="1_3yhdk"]
 [ext_resource type="Script" uid="uid://ctdfpwa4em8mg" path="res://Scripts/TerrainGeneration/Biome.cs" id="1_cj421"]
 [ext_resource type="Script" uid="uid://dcorc0ais187x" path="res://Scripts/TerrainGeneration/BiomeNoiseFunction.cs" id="1_fw26l"]
-[ext_resource type="Texture2D" uid="uid://bjgtisrtlsv6d" path="res://Textures/Prism/metallic.png" id="2_wl6e8"]
+[ext_resource type="Texture2D" uid="uid://d4ntc8bkednd2" path="res://Textures/Prism/metalRough.png" id="2_qgo0o"]
 [ext_resource type="Texture2D" uid="uid://qtfw0fktqi6i" path="res://Textures/Prism/normalMap.png" id="4_eug7v"]
-[ext_resource type="Texture2D" uid="uid://lqwa667jjggj" path="res://Textures/Prism/roughness.png" id="5_bkllb"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_acusk"]
 noise_type = 0
@@ -46,6 +45,5 @@ noiseFunctions = Array[Object]([SubResource("Resource_hr6dg"), SubResource("Reso
 biomeWeights = PackedFloat32Array(1, -1, -1)
 baseColorTexture = ExtResource("1_3yhdk")
 normalTexture = ExtResource("4_eug7v")
-roughnessTexture = ExtResource("5_bkllb")
-metallicTexture = ExtResource("2_wl6e8")
+metalRoughTexture = ExtResource("2_qgo0o")
 metadata/_custom_type_script = "uid://ctdfpwa4em8mg"

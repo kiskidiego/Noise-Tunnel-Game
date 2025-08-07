@@ -17,8 +17,7 @@ public partial class Biome : Resource
 	[ExportGroup("BiomeTextures")]
 	[Export] public Texture2D baseColorTexture;
 	[Export] public Texture2D normalTexture;
-	[Export] public Texture2D roughnessTexture;
-	[Export] public Texture2D metallicTexture;
+	[Export] public Texture2D metalRoughTexture;
 	public int initNoiseFunctions(int seed)
 	{
 		int currentSeed = seed + 1;

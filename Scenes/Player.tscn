@@ -40,7 +40,8 @@ environment = SubResource("Environment_kyqiw")
 
 [node name="SpotLight3D" type="SpotLight3D" parent="CameraRotator/Camera3D"]
 light_energy = 3.0
-spot_range = 25.0
+spot_range = 20.0
+spot_angle = 60.0
 
 [node name="InteractionRay" type="RayCast3D" parent="CameraRotator/Camera3D"]
 target_position = Vector3(0, 0, -5)
