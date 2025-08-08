@@ -35,7 +35,7 @@ public partial class TerrainGeneration : Node
 	public override void _Ready()
 	{
 		PrepareTextures();
-		Generate();
+		InitialGeneration();
 	}
 	void PrepareTextures()
 	{
@@ -60,7 +60,7 @@ public partial class TerrainGeneration : Node
 		biomeBaseMaterial.SetShaderParameter("metalRoughTexture", metalRoughTexture);
 		biomeBaseMaterial.SetShaderParameter("biomeAmount", biomes.Length);
 	}
-	void Generate()
+	void InitialGeneration()
 	{
 		if (seed == 0)
 		{
@@ -82,6 +82,21 @@ public partial class TerrainGeneration : Node
 			currentSeed = biomes[i].initNoiseFunctions(currentSeed);
 		}
 		PreparePointsOfInterest();
+		GenerateFromWorldPosition(player.GlobalPosition);
+	}
+	void ChooseInitialSpawnPoint()
+	{
+		while ((!player.ValidatePosition()) || GetCellFromWorld((int)player.GlobalPosition.X, (int)player.GlobalPosition.Y, (int)player.GlobalPosition.Z) > floorHeight - 0.5f)
+		{
+			player.GlobalPosition += new Vector3(rng.RandiRange(-1, 1), rng.RandiRange(-1, 1), rng.RandiRange(-1, 1)); // Move the player up until they are above the floor
+			if (GenerateFromWorldPosition(player.GlobalPosition))
+			{
+				return;
+			}
+			GD.Print($"Moving player to {player.GlobalPosition} to find a valid spawn point.");
+		}
+		firstGeneration = false; // Reset first generation flag
+		player.Activate(); // Activate the player after finding a valid spawn point
 	}
 	List<Vector3I> GetAllCellsInRadiusRecursive(Vector3I position, int radius)
 	{
@@ -169,8 +184,9 @@ public partial class TerrainGeneration : Node
 			List<Vector3> vertices = new List<Vector3>();
 			List<Vector3> normals = new List<Vector3>();
 			List<Color> biomeValues = new List<Color>();
-			List<float> biomeIndices = new List<float>();
-			MarchingCubesAlgorithm(chunk, vertices, normals, biomeValues, biomeIndices);
+			List<Vector2> biomeInfluences = new List<Vector2>();
+			MarchingCubesAlgorithm(chunk, vertices, normals, biomeValues, biomeInfluences);
+			if (vertices.Count == 0) continue; // Skip if no vertices were generated
 			//InterpolateNormals(vertices, normals);
 			MeshInstance3D meshInstance = chunkMeshes.GetValueOrDefault(chunk, null);
 			//GD.Print($"Updating chunk {chunk} mesh instance: {(meshInstance != null ? "Exists" : "Does not exist")}");
@@ -187,7 +203,7 @@ public partial class TerrainGeneration : Node
 			arrays[(int)ArrayMesh.ArrayType.Vertex] = vertices.ToArray();
 			arrays[(int)ArrayMesh.ArrayType.Normal] = normals.ToArray();
 			arrays[(int)Mesh.ArrayType.Color] = biomeValues.ToArray();
-			arrays[(int)Mesh.ArrayType.Tangent] = biomeIndices.ToArray();
+			arrays[(int)Mesh.ArrayType.TexUV] = biomeInfluences.ToArray();
 
 			(meshInstance.Mesh as ArrayMesh).AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
 
@@ -209,7 +225,7 @@ public partial class TerrainGeneration : Node
 			collisionShape.Shape = meshInstance.Mesh.CreateTrimeshShape();
 		}
 	}
-	public void GenerateFrom(Vector3 position)
+	public bool GenerateFromWorldPosition(Vector3 position)
 	{
 		
 		Vector3I chunkCoords = new Vector3I(
@@ -218,11 +234,12 @@ public partial class TerrainGeneration : Node
 			WorldToChunkIndex((int)position.Z, chunkSizeZ)
 		);
 
-		if (currentChunkCoords == chunkCoords || generating) return; // If the chunk is already generated or being generated, skip
+		if (currentChunkCoords == chunkCoords || generating) return false; // If the chunk is already generated or being generated, skip
 		generating = true;
 		currentChunkCoords = chunkCoords;
 
 		GenerateFromAsync(chunkCoords);
+		return true;
 	}
 	async void GenerateFromAsync(Vector3I chunkCoords)
 	{
@@ -269,19 +286,18 @@ public partial class TerrainGeneration : Node
 		generating = false; // Reset generating flag after generation is done
 		if(firstGeneration)
 		{
-			player.ProcessMode = ProcessModeEnum.Inherit;
+			ChooseInitialSpawnPoint();
 		}
-		firstGeneration = false; // Reset first generation flag
 	}
 	void GenerateChunk(Vector3I chunkCoords)
 	{
 		List<Vector3> vertices = new List<Vector3>();
 		List<Vector3> normals = new List<Vector3>();
 		List<Color> biomeValues = new List<Color>();
-		List<float> biomeIndices = new List<float>();
-		MarchingCubesAlgorithm(chunkCoords, vertices, normals, biomeValues, biomeIndices);
+		List<Vector2> biomeInfluences = new List<Vector2>();
+		MarchingCubesAlgorithm(chunkCoords, vertices, normals, biomeValues, biomeInfluences);
 		//InterpolateNormals(vertices, normals);
-		GenerateGeometry(chunkCoords, vertices, normals, biomeValues, biomeIndices);
+		GenerateGeometry(chunkCoords, vertices, normals, biomeValues, biomeInfluences);
 	}
 	void PreparePointsOfInterest()
 	{
@@ -290,7 +306,7 @@ public partial class TerrainGeneration : Node
 		foreach (var poi in pointsOfInterest)
 		{
 			if (poi.leadsTo == null || poi.leadsTo.Length == 0) continue;
-			string cells = "";
+
 			foreach (int index in poi.leadsTo)
 			{
 				Vector3I start = poi.Position;
@@ -302,7 +318,8 @@ public partial class TerrainGeneration : Node
 				Vector3I end = pointsOfInterest[index].Position;
 				while (start != end)
 				{
-					start = NextCellInPath(start, end, false);
+					start = NextCellInPath(start, end);
+
 					while (GetCellFromWorld(start.X, start.Y, start.Z) == -1)
 					{
 						start = NextCellInPath(start, end, false); // If already marked, find next cell
@@ -314,11 +331,16 @@ public partial class TerrainGeneration : Node
 							for (int z = -tunnelWidth; z <= tunnelWidth; z++)
 							{
 								//if (x == 0 && y == 0 && z == 0) continue; // Skip the center cell
-								cells += $"({start.X + x}, {start.Y + y}, {start.Z + z}): {-1f / (1 + Mathf.Max(Mathf.Abs(x), Mathf.Max(Mathf.Abs(y), Mathf.Abs(z))))}\n";
-								SetCellFromWorld(start.X + x, start.Y + y, start.Z + z, -1f / (1 + Mathf.Max(Mathf.Abs(x), Mathf.Max(Mathf.Abs(y), Mathf.Abs(z))))); // Mark the surrounding cells as part of the path
+								int absX = Mathf.Abs(x);
+								int absY = Mathf.Abs(y);
+								int absZ = Mathf.Abs(z);
+								if (absX + absY + absZ > tunnelWidth + tunnelWidth / 2) continue; // Skip cells that are too far from the center
+
+								SetCellFromWorld(start.X + x, start.Y + y, start.Z + z, -0.5f); // Mark the surrounding cells as part of the path
 							}
 						}
 					}
+					SetCellFromWorld(start.X, start.Y, start.Z, -1f); // Mark the surrounding cells as part of the path
 				}
 			}
 			//GD.Print($"Generated path for POI {poi.Name} with cells: {cells}");
@@ -451,24 +473,85 @@ public partial class TerrainGeneration : Node
 		int chunkPositionX = ChunkIndexToWorld(chunkCoords.X, chunkSizeX);
 		int chunkPositionY = ChunkIndexToWorld(chunkCoords.Y, chunkSizeY);
 		int chunkPositionZ = ChunkIndexToWorld(chunkCoords.Z, chunkSizeZ);
+
+		if (chunkCoords.Y > 0)
+		{
+			for (int x = 0; x < cells.GetLength(0); x++)
+			{
+				for (int y = 0; y < cells.GetLength(1); y++)
+				{
+					for (int z = 0; z < cells.GetLength(2); z++)
+					{
+						cells[x, y, z] = -1;
+						cellBiomes[chunkCoords][x, y, z] = 0; // Mark all cells as part of a cave
+					}
+				}
+			}
+			return;
+		}
+
+		if (chunkCoords.Y == 0)
+		{
+			if ((chunkCoords.X == 0 || chunkCoords.X == -1) && (chunkCoords.Z == 0 || chunkCoords.Z == -1))
+			{
+				for (int x = 0; x < cells.GetLength(0); x++)
+				{
+					for (int z = 0; z < cells.GetLength(2); z++)
+					{
+						cells[x, 0, z] = rng.RandfRange(0, 1); // Mark the floor as part of a cave
+					}
+				}
+				for (int x = 0; x < cells.GetLength(0); x++)
+				{
+					for (int y = 1; y < cells.GetLength(1); y++)
+					{
+						for (int z = 0; z < cells.GetLength(2); z++)
+						{
+							cells[x, y, z] = -1;
+							cellBiomes[chunkCoords][x, y, z] = 0;
+						}
+					}
+				}
+				return;
+			}
+			for (int x = 0; x < cells.GetLength(0); x++)
+				{
+					for (int z = 0; z < cells.GetLength(2); z++)
+					{
+						cells[x, 0, z] = rng.RandfRange(-0.5f, 1); // Mark the floor as part of a cave
+					}
+				}
+			for (int x = 0; x < cells.GetLength(0); x++)
+			{
+				for (int y = 1; y < cells.GetLength(1); y++)
+				{
+					for (int z = 0; z < cells.GetLength(2); z++)
+					{
+						cells[x, y, z] = -1;
+						cellBiomes[chunkCoords][x, y, z] = 0;
+					}
+				}
+			}
+			return;
+		}
+
 		for (int x = 0; x < cells.GetLength(0); x++)
 		{
 			for (int y = 0; y < cells.GetLength(1); y++)
 			{
 				for (int z = 0; z < cells.GetLength(2); z++)
 				{
-					if (cells[x, y, z] < 0)
+					float cellValue = cells[x, y, z];
+					if (cellValue > 0.0000001f && cellValue < -0.0000001f)
 					{
-						//GD.Print($"Skipping cell ({x}, {y}, {z}) at chunk: {chunkCoords} as it is already part of a path or cave.");
-						continue; // Skip if this cell is part of a path
+						continue;
 					}
-					
 					cells[x, y, z] = biomes[cellBiomes[chunkCoords][x, y, z]].GetNoiseValue(x + chunkPositionX, y + chunkPositionY, z + chunkPositionZ);
 				}
 			}
 		}
 	}
-	void MarchingCubesAlgorithm(Vector3I chunkCoords, List<Vector3> vertices, List<Vector3> normals, List<Color> biomeValues, List<float> biomeIndices)
+	void MarchingCubesAlgorithm(Vector3I chunkCoords, List<Vector3> vertices, List<Vector3> normals, List<Color> biomeValues, List<Vector2> biomeInfluences)
 	{
 		int chunkPositionX = ChunkIndexToWorld(chunkCoords.X, chunkSizeX);
 		int chunkPositionY = ChunkIndexToWorld(chunkCoords.Y, chunkSizeY);
@@ -522,7 +605,7 @@ public partial class TerrainGeneration : Node
 						vertices = new List<Vector3>();
 						normals = new List<Vector3>();
 						biomeValues = new List<Color>();
-						biomeIndices = new List<float>();
+						biomeInfluences = new List<Vector2>();
 					}
 
 					Vector3[] edgeVertices = new Vector3[12];
@@ -589,24 +672,13 @@ public partial class TerrainGeneration : Node
 						float vertex2Biome = GetCellBiomeFromWorld(Mathf.RoundToInt(vertices[vertices.Count - 2].X), Mathf.RoundToInt(vertices[vertices.Count - 2].Y), Mathf.RoundToInt(vertices[vertices.Count - 2].Z)) / (float)biomes.Length;
 						float vertex3Biome = GetCellBiomeFromWorld(Mathf.RoundToInt(vertices[vertices.Count - 1].X), Mathf.RoundToInt(vertices[vertices.Count - 1].Y), Mathf.RoundToInt(vertices[vertices.Count - 1].Z)) / (float)biomes.Length;
 
-						biomeValues.Add(new Color(vertex1Biome, vertex2Biome, vertex3Biome, 0f));
+						biomeValues.Add(new Color(vertex1Biome, vertex2Biome, vertex3Biome, 1f));
 						biomeValues.Add(new Color(vertex1Biome, vertex2Biome, vertex3Biome, 0f));
 						biomeValues.Add(new Color(vertex1Biome, vertex2Biome, vertex3Biome, 0f));
 
-						biomeIndices.Add(1f);
-						biomeIndices.Add(0f);
-						biomeIndices.Add(0f);
-						biomeIndices.Add(0f);
-
-						biomeIndices.Add(0f);
-						biomeIndices.Add(1f);
-						biomeIndices.Add(0f);
-						biomeIndices.Add(0f);
-
-						biomeIndices.Add(0f);
-						biomeIndices.Add(0f);
-						biomeIndices.Add(1f);
-						biomeIndices.Add(0f);
+						biomeInfluences.Add(new Vector2(0, 0));
+						biomeInfluences.Add(new Vector2(1f, 0f));
+						biomeInfluences.Add(new Vector2(0f, 1f));
 					}
 				}
 			}
@@ -618,9 +690,9 @@ public partial class TerrainGeneration : Node
 	{
 		return p1 + (p2 - p1) * (floorHeight - v1) / (v2 - v1);
 	}
-	void GenerateGeometry(Vector3I chunkCoords, List<Vector3> vertices, List<Vector3> normals, List<Color> biomeValues, List<float> biomeIndices)
+	void GenerateGeometry(Vector3I chunkCoords, List<Vector3> vertices, List<Vector3> normals, List<Color> biomeValues, List<Vector2> biomeInfluences)
 	{
-		//if (vertices.Count == 0) return;
+		if (vertices.Count == 0) return;
 		//await Task.Delay(1); // Yield to the main thread to avoid blocking it
 		
 
@@ -629,7 +701,7 @@ public partial class TerrainGeneration : Node
 		arrays[(int)Mesh.ArrayType.Vertex] = vertices.ToArray();
 		arrays[(int)Mesh.ArrayType.Normal] = normals.ToArray();
 		arrays[(int)Mesh.ArrayType.Color] = biomeValues.ToArray();
-		arrays[(int)Mesh.ArrayType.Tangent] = biomeIndices.ToArray();
+		arrays[(int)Mesh.ArrayType.TexUV] = biomeInfluences.ToArray();
 
 		MeshInstance3D meshInstance = new MeshInstance3D();
 		meshInstance.Mesh = new ArrayMesh();

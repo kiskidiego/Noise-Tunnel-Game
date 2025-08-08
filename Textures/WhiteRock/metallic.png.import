@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://d4ntc8bkednd2"
-path="res://.godot/imported/metalRough.png-1bd92ee098cac3f0d03a16833a278776.ctex"
+uid="uid://c5rwtn3f10ym1"
+path="res://.godot/imported/metallic.png-e3401924a75b43c0568195b6004fb1a3.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Textures/Prism/metalRough.png"
-dest_files=["res://.godot/imported/metalRough.png-1bd92ee098cac3f0d03a16833a278776.ctex"]
+source_file="res://Textures/WhiteRock/metallic.png"
+dest_files=["res://.godot/imported/metallic.png-e3401924a75b43c0568195b6004fb1a3.ctex"]
 
 [params]
 
@@ -31,4 +31,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=0
+detect_3d/compress_to=1

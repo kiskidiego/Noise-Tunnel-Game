@@ -15,7 +15,7 @@ void vertex() {
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
     world_normal = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 	biomeIndexes = COLOR.rgb * float(biomeAmount);
-	biomeInfluences = TANGENT.xyz;
+	biomeInfluences = vec3(COLOR.a, UV);
 }
 
 vec3 triplanar(sampler2DArray tex, vec3 blendWeights, vec3 scaled_pos, float textureDepth)
@@ -40,20 +40,19 @@ void fragment() {
 	ALBEDO = triplanar(colorTexture, blendWeights, scaled_pos, biomeIndexes.r) * biomeInfluences.r +
 			 triplanar(colorTexture, blendWeights, scaled_pos, biomeIndexes.g) * biomeInfluences.g +
 			 triplanar(colorTexture, blendWeights, scaled_pos, biomeIndexes.b) * biomeInfluences.b;
-	
+
 	vec3 metalRough = triplanar(metalRoughTexture, blendWeights, scaled_pos, biomeIndexes.r) * biomeInfluences.r +
 					  triplanar(metalRoughTexture, blendWeights, scaled_pos, biomeIndexes.g) * biomeInfluences.g +
 					  triplanar(metalRoughTexture, blendWeights, scaled_pos, biomeIndexes.b) * biomeInfluences.b;
-	
-	ROUGHNESS = metalRough.r;
-	METALLIC = metalRough.g;
 
+	METALLIC = metalRough.r;
+	ROUGHNESS = metalRough.g;
+/**
 	vec3 normalMap = triplanar(normalTexture, blendWeights, scaled_pos, biomeIndexes.r) * biomeInfluences.r +
 			 		 triplanar(normalTexture, blendWeights, scaled_pos, biomeIndexes.g) * biomeInfluences.g +
 					 triplanar(normalTexture, blendWeights, scaled_pos, biomeIndexes.b) * biomeInfluences.b;
 
-	NORMAL_MAP = normalize(normalMap);
-	NORMAL_MAP_DEPTH = 0.15;
+	NORMAL = normalize(normalMap);/**/
 }
 
 //void light() {

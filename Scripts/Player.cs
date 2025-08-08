@@ -29,6 +29,9 @@ public partial class Player : CharacterBody3D
 	[Export] RayCast3D hookRay; // Ray for grappling hook interaction
 	[Export] TerrainGeneration terrainGeneration;
 	[Export] MeshInstance3D grapplingHookMesh; // Mesh for the grappling hook
+	[Export] Control cameraCover;
+	[Export] ShapeCast3D positionValidator;
+	[Export] Node3D sunBlocker;
 	bool isGrappleSwinging = false;
 	bool isGrapplePulling = false; // Flag to indicate if the player is currently pulling with the grappling hook
 	bool isGrappleAscending = false; // Flag to indicate if the player is currently ascending with the grappling hook
@@ -41,7 +44,7 @@ public partial class Player : CharacterBody3D
 		airSpeed = groundSpeed; // Initialize air speed to ground speed
 		grapplingHookMesh.Visible = false; // Hide the grappling hook mesh initially
 		Input.MouseMode = Input.MouseModeEnum.Captured;
-		terrainGeneration.GenerateFrom(GlobalPosition);
+		terrainGeneration.GenerateFromWorldPosition(GlobalPosition);
 		ProcessMode = ProcessModeEnum.Disabled; // Disable process mode to avoid unnecessary processing
 	}
 	public override void _Input(InputEvent @event)
@@ -86,6 +89,18 @@ public partial class Player : CharacterBody3D
 		Velocity = velocity;
 		MoveAndSlide();
 		HandleCollisions();
+	}
+
+	public bool ValidatePosition()
+	{
+		return !positionValidator.IsColliding();
+	}
+
+	public void Activate()
+	{
+		ProcessMode = ProcessModeEnum.Inherit; // Enable process mode to allow processing
+		cameraCover.Visible = false; // Hide the camera cover when the player is activated
+		GD.Print("Player activated.");
 	}
 
 	Vector3? Raycast(Vector3 from, Vector3 to)
@@ -150,8 +165,8 @@ public partial class Player : CharacterBody3D
 				position = currentGrappleRayHit.Value,
 				lastGrapplePoint = oldGrapplePoint // Set the last grapple point to the previous one
 			};
-			grappleSwingLength -= grapplePoint.position.DistanceTo(oldGrapplePoint.position); // Update the swing length based on the new grapple point
-
+			grappleSwingLength = Math.Max(hookRay.GlobalPosition.DistanceTo(grapplePoint.position), grappleSwingLength - oldGrapplePoint.position.DistanceTo(grapplePoint.position)); // Update the swing length based on the new grapple point
+			grappleSwingLength = Math.Max(grappleSwingLength, 0.1f); // Prevent negative swing length
 			// Calculate grapple normal to determine later if we should revert to the last grapple point
 			Vector3 oldPosition = hookRay.GlobalPosition - Velocity; // Estimate the old position based on current velocity (Might need to multiply by delta)
 			Vector3 vectorToOldGrapple = oldGrapplePoint.position - oldPosition;
@@ -172,10 +187,11 @@ public partial class Player : CharacterBody3D
 				Vector3 vectorToLastGrapple = grapplePoint.lastGrapplePoint.position - hookRay.GlobalPosition;
 				Vector3 vectorToCurrentGrapple = grapplePoint.position - hookRay.GlobalPosition;
 				Vector3 grappleNormal = vectorToCurrentGrapple.Cross(vectorToLastGrapple).Normalized();
-				if (grappleNormal.Dot(grapplePoint.grappleNormal) > 0)
+				if (grappleNormal.Dot(grapplePoint.grappleNormal) >= -0.1f)
 				{
+					grappleSwingLength = Math.Max(hookRay.GlobalPosition.DistanceTo(grapplePoint.lastGrapplePoint.position), grappleSwingLength + grapplePoint.position.DistanceTo(grapplePoint.lastGrapplePoint.position)); // Update the swing length based on the last grapple point
+					grappleSwingLength = Math.Max(grappleSwingLength, 0.1f); // Prevent negative swing length
 					grapplePoint = grapplePoint.lastGrapplePoint; // Revert to the last grapple point
-					grappleSwingLength = GlobalPosition.DistanceTo(grapplePoint.position); // Update the swing length based on the last grapple point
 					return true; // Reverted to last grapple point successfully
 				}
 				//GD.Print("Grapple Normal check failed, not reverting to last grapple point.");
@@ -305,9 +321,10 @@ public partial class Player : CharacterBody3D
 	}
 	public override void _Process(double delta)
 	{
-		terrainGeneration.GenerateFrom(GlobalPosition);
+		terrainGeneration.GenerateFromWorldPosition(GlobalPosition);
 		HandleTerraformingInput(delta);
 		HandleGrapplingHookInput(delta);
+		sunBlocker.GlobalPosition = new Vector3(GlobalPosition.X, -10, GlobalPosition.Z); // Keep the sun blocker aligned with the player on the XZ plane
 	}
 	void HandleTerraformingInput(double delta)
 	{

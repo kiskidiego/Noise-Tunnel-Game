@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="Biome" load_steps=5 format=3 uid="uid://d4iw3l7lpgmyx"]
+
+[ext_resource type="Texture2D" uid="uid://iovyp60fgmpe" path="res://Textures/Prism/baseColorTest.png" id="1_2t16o"]
+[ext_resource type="Script" uid="uid://ctdfpwa4em8mg" path="res://Scripts/TerrainGeneration/Biome.cs" id="1_pch4f"]
+[ext_resource type="Texture2D" uid="uid://d4ntc8bkednd2" path="res://Textures/Prism/metalRough.png" id="2_0eekl"]
+[ext_resource type="Texture2D" uid="uid://qtfw0fktqi6i" path="res://Textures/Prism/normalMap.png" id="3_c5tw8"]
+
+[resource]
+script = ExtResource("1_pch4f")
+name = ""
+noiseFunctions = null
+biomeWeights = PackedFloat32Array(-1000, -1000, -1000)
+baseColorTexture = ExtResource("1_2t16o")
+normalTexture = ExtResource("3_c5tw8")
+metalRoughTexture = ExtResource("2_0eekl")
+metadata/_custom_type_script = "uid://ctdfpwa4em8mg"
