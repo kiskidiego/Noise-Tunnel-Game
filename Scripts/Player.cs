@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Reflection.Metadata;
 
 public partial class Player : CharacterBody3D
 {
@@ -20,6 +21,7 @@ public partial class Player : CharacterBody3D
 	[Export] float grapplePullBreakDistance = 1.0f; // Distance at which the grapple pull breaks
 	[Export] float grappleAscendSpeed = 0.1f; // Speed at which the player ascends while grappling
 	[Export] float maxGrappleExtension = 30.0f; // Maximum distance the grappling hook can extend
+	[Export] float climbingSpeed = 2.0f; // Speed at which the player climbs
 	[Export] float cameraSensitivity = 0.01f;
 	[Export] float terraformSpeed = 0.1f;
 	[Export] int terraformRadius = 1;
@@ -32,10 +34,13 @@ public partial class Player : CharacterBody3D
 	[Export] Control cameraCover;
 	[Export] ShapeCast3D positionValidator;
 	[Export] Node3D sunBlocker;
+	[Export] Node3D cameraRotatorH;
+	[Export] ShapeCast3D climbingValidator;
 	bool isGrappleSwinging = false;
 	bool isGrapplePulling = false; // Flag to indicate if the player is currently pulling with the grappling hook
 	bool isGrappleAscending = false; // Flag to indicate if the player is currently ascending with the grappling hook
 	bool isGrappleDescending = false; // Flag to indicate if the player is currently descending with the grappling hook
+	bool isClimbing = false; // Flag to indicate if the player is currently climbing
 	GrapplePoint grapplePoint = new GrapplePoint();
 	float grappleSwingLength;
 	float airSpeed; // Max speed while in the air
@@ -52,7 +57,15 @@ public partial class Player : CharacterBody3D
 		if (@event is InputEventMouseMotion mouseEvent)
 		{
 			// Rotate the player based on the mouse movement.
-			RotateObjectLocal(Vector3.Down, mouseEvent.Relative.X * cameraSensitivity);
+			if (isClimbing)
+			{
+				cameraRotatorH.RotateObjectLocal(Vector3.Down, mouseEvent.Relative.X * cameraSensitivity);
+				cameraRotatorH.Rotation = new Vector3(0, Mathf.Clamp(cameraRotatorH.Rotation.Y, -Mathf.Pi / 2, Mathf.Pi / 2), 0);
+			}
+			else
+			{
+				RotateObjectLocal(Vector3.Down, mouseEvent.Relative.X * cameraSensitivity);
+			}
 
 			camRotator.Rotation = new Vector3(Mathf.Clamp(camRotator.Rotation.X - mouseEvent.Relative.Y * cameraSensitivity, -Mathf.Pi / 2, Mathf.Pi / 2), 0, 0);
 			Transform = Transform.Orthonormalized();
@@ -60,9 +73,33 @@ public partial class Player : CharacterBody3D
 
 		}
 	}
+	
+	public bool ValidatePosition()
+	{
+		return !positionValidator.IsColliding();
+	}
+
+	public void Activate()
+	{
+		ProcessMode = ProcessModeEnum.Inherit; // Enable process mode to allow processing
+		cameraCover.Visible = false; // Hide the camera cover when the player is activated
+		GD.Print("Player activated.");
+	}
 	public override void _PhysicsProcess(double delta)
 	{
 		Vector3 velocity = Velocity;
+
+		if (isClimbing)
+		{
+			Vector3 camRotatorRotation = cameraRotatorH.GlobalRotation;
+			velocity = HandleClimbing(velocity, delta);
+			Velocity = velocity;
+			MoveAndSlide();
+			cameraRotatorH.GlobalRotation = camRotatorRotation; // Restore camera rotation
+			cameraRotatorH.Rotation = new Vector3(0, Mathf.Clamp(cameraRotatorH.Rotation.Y, -Mathf.Pi / 2, Mathf.Pi / 2), 0); // Keep only the Y rotation for the camera
+			HandleCollisions();
+			return; // Skip the rest of the movement logic while climbing
+		}
 
 		if (isGrapplePulling)
 		{
@@ -91,16 +128,25 @@ public partial class Player : CharacterBody3D
 		HandleCollisions();
 	}
 
-	public bool ValidatePosition()
+	Vector3 HandleClimbing(Vector3 velocity, double delta)
 	{
-		return !positionValidator.IsColliding();
-	}
+		if (!climbingValidator.IsColliding())
+		{
+			StopClimbing(); // Stop climbing if the validator is not colliding
+			return velocity;
+		}
 
-	public void Activate()
-	{
-		ProcessMode = ProcessModeEnum.Inherit; // Enable process mode to allow processing
-		cameraCover.Visible = false; // Hide the camera cover when the player is activated
-		GD.Print("Player activated.");
+		Vector3 normal = climbingValidator.GetCollisionNormal(0);
+		LookAt(GlobalPosition - normal);
+		GlobalRotation = new Vector3(0, GlobalRotation.Y, 0); // Keep only the Y rotation
+		
+
+		Vector2 inputDir = Input.GetVector("MovementLeft", "MovementRight", "MovementBackward", "MovementForward");
+		Vector3 direction = (GlobalBasis * new Vector3(inputDir.X, inputDir.Y, 0)).Normalized();
+
+		velocity = direction * climbingSpeed; // Set the player's velocity based on input direction and climbing speed
+		velocity -= new Vector3(normal.X, 0, normal.Z); // Adjust velocity to move against the surface normal
+		return velocity;
 	}
 
 	Vector3? Raycast(Vector3 from, Vector3 to)
@@ -323,7 +369,48 @@ public partial class Player : CharacterBody3D
 	{
 		HandleTerraformingInput(delta);
 		HandleGrapplingHookInput(delta);
+		HandleClimbingInput(delta);
 		sunBlocker.GlobalPosition = new Vector3(GlobalPosition.X, -10, GlobalPosition.Z); // Keep the sun blocker aligned with the player on the XZ plane
+	}
+	void HandleClimbingInput(double delta)
+	{
+		bool wasClimbing = isClimbing;
+		isClimbing = false; // Reset climbing flag each frame
+		if (Input.IsActionPressed("Climb") && climbingValidator.IsColliding())
+		{
+			isClimbing = true; // Start climbing if the validator is colliding and climb action is pressed
+		}
+		if (isClimbing && !wasClimbing)
+		{
+			StartClimbing(); // Start climbing if the player was not already climbing
+		}
+		if (wasClimbing && !isClimbing)
+		{
+			StopClimbing(); // Stop climbing if the player was climbing
+		}
+		if (isClimbing)
+		{
+			cameraRotatorH.Rotation = new Vector3(0, Mathf.Clamp(cameraRotatorH.Rotation.Y, -Mathf.Pi / 2, Mathf.Pi / 2), 0); // Keep only the Y rotation for the camera
+		}
+	}
+	void StartClimbing()
+	{
+		GD.Print("Starting to climb");
+		isClimbing = true;
+		
+		Vector3 oldRotation = new Vector3(GlobalRotation.X, GlobalRotation.Y, GlobalRotation.Z); // Store the old rotation
+		LookAt(GlobalPosition - climbingValidator.GetCollisionNormal(0));
+		GD.Print(climbingValidator.GetCollisionNormal(0));
+		GlobalRotation = new Vector3(0, GlobalRotation.Y, 0); // Keep only the Y rotation
+		cameraRotatorH.GlobalRotation = oldRotation; // Align camera rotation with old player rotation
+		cameraRotatorH.Rotation = new Vector3(0, Mathf.Clamp(cameraRotatorH.Rotation.Y, -Mathf.Pi / 2, Mathf.Pi / 2), 0); // Keep only the Y rotation for the camera
+	}
+	void StopClimbing()
+	{
+		GD.Print("Stopping climbing");
+		isClimbing = false; // Reset climbing flag
+		GlobalRotation = cameraRotatorH.GlobalRotation; // Reset rotation to camera rotation when stopping climbing
+		cameraRotatorH.Rotation = Vector3.Zero; // Reset camera rotation when stopping climbing
 	}
 	void HandleTerraformingInput(double delta)
 	{

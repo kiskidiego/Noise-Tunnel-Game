@@ -21,6 +21,7 @@ airAcceleration = 0.1
 grapplePullSpeed = 20.0
 grapplePullAcceleration = 1.0
 grappleAscendSpeed = 3.0
+climbingSpeed = 1.0
 terraformSpeed = 1.0
 terrainGeneration = NodePath("..")
 sunBlocker = NodePath("SunBlocker")

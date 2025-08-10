@@ -19,4 +19,5 @@ script = ExtResource("1_7vn0r")
 chunkSize = Vector3i(20, 20, 20)
 biomeNoises = Array[FastNoiseLite]([SubResource("FastNoiseLite_7vn0r"), SubResource("FastNoiseLite_pwlyn"), SubResource("FastNoiseLite_uw2ls")])
 biomes = Array[Object]([ExtResource("1_l3bhb"), ExtResource("2_dhn02"), ExtResource("3_tn3qr"), ExtResource("4_s7ptw"), ExtResource("5_017q2"), ExtResource("6_e6glj")])
+ceiling = 0
 metadata/_custom_type_script = "uid://cp168tqvgibip"
