@@ -321,7 +321,6 @@ public partial class Player : CharacterBody3D
 	}
 	public override void _Process(double delta)
 	{
-		terrainGeneration.GenerateFromWorldPosition(GlobalPosition);
 		HandleTerraformingInput(delta);
 		HandleGrapplingHookInput(delta);
 		sunBlocker.GlobalPosition = new Vector3(GlobalPosition.X, -10, GlobalPosition.Z); // Keep the sun blocker aligned with the player on the XZ plane

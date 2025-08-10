@@ -10,39 +10,39 @@ using Godot.Collections;
 
 public partial class TerrainGeneration : Node
 {
+	[Export] World world;
 	[Export] int seed = 0;
+	/* PATH STUFF
 	[Export] FastNoiseLite baseNoise;
-	[Export] FastNoiseLite[] biomeNoises;
-	[Export] Biome[] biomes;
-	[Export] int chunkSizeX = 5, chunkSizeY = 5, chunkSizeZ = 5;
-	[Export] float floorHeight = 50f;
 	[Export] int tunnelWidth = 1;
 	[Export] float pathStraightness = 0.6f; // How straight the paths should be, 1 is perfectly straight, 0 is completely random
 	[Export] PointOfInterest[] pointsOfInterest;
+	*/
 	[Export] int chunkDistance = 2; // How many chunks away to generate
 	[Export] ShaderMaterial biomeBaseMaterial;
 	[Export] Player player;
-	ConcurrentDictionary<Vector3I, float[,,]> chunks = new ConcurrentDictionary<Vector3I, float[,,]>();
-	ConcurrentDictionary<Vector3I, bool> chunkGenerated = new ConcurrentDictionary<Vector3I, bool>();
-	ConcurrentDictionary<Vector3I, bool> chunkScored = new ConcurrentDictionary<Vector3I, bool>();
-	ConcurrentDictionary<Vector3I, MeshInstance3D> chunkMeshes = new ConcurrentDictionary<Vector3I, MeshInstance3D>();
-	ConcurrentDictionary<Vector3I, int[,,]> cellBiomes = new ConcurrentDictionary<Vector3I, int[,,]>();
 	RandomNumberGenerator rng = new RandomNumberGenerator();
 	Vector3I currentChunkCoords = new Vector3I(int.MaxValue, int.MaxValue, int.MaxValue);
 	bool generating = false;
 	bool firstGeneration = true; // Flag to indicate if this is the first generation
+	float floorHeight = 0;
 	
 	public override void _Ready()
 	{
 		PrepareTextures();
 		InitialGeneration();
 	}
+    public override void _Process(double delta)
+    {
+        GenerateFromWorldPosition(player.GlobalPosition);
+    }
+
 	void PrepareTextures()
 	{
 		Array<Image> colorTextureArray = new Array<Image>();
 		Array<Image> normalTextureArray = new Array<Image>();
 		Array<Image> metalRoughTextureArray = new Array<Image>();
-		foreach (Biome biome in biomes)
+		foreach (Biome biome in world.biomes)
 		{
 			colorTextureArray.Add(biome.baseColorTexture?.GetImage());
 			normalTextureArray.Add(biome.normalTexture?.GetImage());
@@ -58,7 +58,7 @@ public partial class TerrainGeneration : Node
 		biomeBaseMaterial.SetShaderParameter("colorTexture", colorTexture);
 		biomeBaseMaterial.SetShaderParameter("normalTexture", normalTexture);
 		biomeBaseMaterial.SetShaderParameter("metalRoughTexture", metalRoughTexture);
-		biomeBaseMaterial.SetShaderParameter("biomeAmount", biomes.Length);
+		biomeBaseMaterial.SetShaderParameter("biomeAmount", world.biomes.Length);
 	}
 	void InitialGeneration()
 	{
@@ -71,22 +71,16 @@ public partial class TerrainGeneration : Node
 		{
 			rng.Seed = (ulong)seed;
 		}
-		int currentSeed = seed;
-		baseNoise.Seed = currentSeed++;
-		for (int i = 0; i < biomeNoises.Length; i++)
-		{
-			biomeNoises[i].Seed = currentSeed++;
-		}
-		for (int i = 0; i < biomes.Length; i++)
-		{
-			currentSeed = biomes[i].initNoiseFunctions(currentSeed);
-		}
-		PreparePointsOfInterest();
+		world.SetSeed(seed);
+
+		world.SetCellScoreFromWorld(new Vector3I(0, 0, 0), 100); // Set the initial floor height at the origin
+
+		//PreparePointsOfInterest();
 		GenerateFromWorldPosition(player.GlobalPosition);
 	}
 	void ChooseInitialSpawnPoint()
 	{
-		while ((!player.ValidatePosition()) || GetCellFromWorld((int)player.GlobalPosition.X, (int)player.GlobalPosition.Y, (int)player.GlobalPosition.Z) > floorHeight - 0.5f)
+		while ((!player.ValidatePosition()) || world.GetCellFromWorld((Vector3I)player.GlobalPosition).score > floorHeight - 0.5f)
 		{
 			player.GlobalPosition += new Vector3(rng.RandiRange(-1, 1), rng.RandiRange(-1, 1), rng.RandiRange(-1, 1)); // Move the player up until they are above the floor
 			if (GenerateFromWorldPosition(player.GlobalPosition))
@@ -146,11 +140,7 @@ public partial class TerrainGeneration : Node
 				{
 					for(int z = -1; z <= 1; z++)
 					{
-						Vector3I chunk = new Vector3I(
-							WorldToChunkIndex(cell.X + x, chunkSizeX),
-							WorldToChunkIndex(cell.Y + y, chunkSizeY),
-							WorldToChunkIndex(cell.Z + z, chunkSizeZ)
-						);
+						Vector3I chunk = world.WorldToChunkIndex(new Vector3I(cell.X + x, cell.Y + y, cell.Z + z));
 						if (!chunks.Contains(chunk))
 						{
 							chunks.Add(chunk);
@@ -173,27 +163,28 @@ public partial class TerrainGeneration : Node
 
 		foreach (var cell in cells)
 		{
-			float cellValue = GetCellFromWorld(cell.X, cell.Y, cell.Z);
+			float cellValue = world.GetCellFromWorld(cell).score;
 			cellValue += terraformPotency;
 			cellValue = Mathf.Clamp(cellValue, -1f, 1f); // Ensure the value is within the valid range
-			SetCellFromWorld(cell.X, cell.Y, cell.Z, cellValue + terraformPotency);
+			world.SetCellScoreFromWorld(cell, cellValue);
 		}
-		List<Vector3I> chunks = GetAllChunksFromCells(cells);
-		foreach (var chunk in chunks)
+		List<Vector3I> chunkCoords = GetAllChunksFromCells(cells);
+		foreach (var chunkCoord in chunkCoords)
 		{
 			List<Vector3> vertices = new List<Vector3>();
 			List<Vector3> normals = new List<Vector3>();
 			List<Color> biomeValues = new List<Color>();
 			List<Vector2> biomeInfluences = new List<Vector2>();
-			MarchingCubesAlgorithm(chunk, vertices, normals, biomeValues, biomeInfluences);
+			MarchingCubesAlgorithm(chunkCoord, vertices, normals, biomeValues, biomeInfluences);
 			if (vertices.Count == 0) continue; // Skip if no vertices were generated
-			//InterpolateNormals(vertices, normals);
-			MeshInstance3D meshInstance = chunkMeshes.GetValueOrDefault(chunk, null);
+											   //InterpolateNormals(vertices, normals);
+			Chunk chunk = world.GetChunk(chunkCoord);
+			MeshInstance3D meshInstance = chunk.mesh;
 			//GD.Print($"Updating chunk {chunk} mesh instance: {(meshInstance != null ? "Exists" : "Does not exist")}");
 			if (meshInstance == null)
 			{
 				meshInstance = new MeshInstance3D();
-				chunkMeshes[chunk] = meshInstance;
+				chunk.mesh = meshInstance;
 				meshInstance.Mesh = new ArrayMesh();
 				AddChild(meshInstance);
 			}
@@ -227,12 +218,8 @@ public partial class TerrainGeneration : Node
 	}
 	public bool GenerateFromWorldPosition(Vector3 position)
 	{
-		
-		Vector3I chunkCoords = new Vector3I(
-			WorldToChunkIndex((int)position.X, chunkSizeX),
-			WorldToChunkIndex((int)position.Y, chunkSizeY),
-			WorldToChunkIndex((int)position.Z, chunkSizeZ)
-		);
+
+		Vector3I chunkCoords = world.WorldToChunkIndex((Vector3I)position);
 
 		if (currentChunkCoords == chunkCoords || generating) return false; // If the chunk is already generated or being generated, skip
 		generating = true;
@@ -253,14 +240,14 @@ public partial class TerrainGeneration : Node
 					for (int z = -chunkDistance - 1; z <= chunkDistance + 1; z++)
 					{
 						Vector3I coords = new Vector3I(chunkCoords.X + x, chunkCoords.Y + y, chunkCoords.Z + z);
-						if (chunkScored.TryGetValue(coords, out bool scored) && scored)
+						Chunk chunk = world.GetChunk(coords);
+						if (chunk.scored)
 						{
 							continue; // Skip already scored chunks
 						}
-						chunkScored[coords] = true; // Mark chunk as scored
-						cellBiomes.TryAdd(coords, new int[chunkSizeX, chunkSizeY, chunkSizeZ]);
-						DetermineBiomes(coords);
-						GenerateNoiseCaves(coords);
+						chunk.scored = true; // Mark chunk as scored
+						world.DetermineBiomes(coords);
+						world.GenerateNoiseCaves(coords);
 					}
 				}
 			}
@@ -273,11 +260,12 @@ public partial class TerrainGeneration : Node
 					for (int z = -chunkDistance; z <= chunkDistance; z++)
 					{
 						Vector3I coords = new Vector3I(chunkCoords.X + x, chunkCoords.Y + y, chunkCoords.Z + z);
-						if (chunkGenerated.TryGetValue(coords, out bool generated) && generated)
+						Chunk chunk = world.GetChunk(coords);
+						if (chunk.generated)
 						{
 							continue; // Skip already generated chunks
 						}
-						chunkGenerated[coords] = true; // Mark chunk as generated
+						chunk.generated = true; // Mark chunk as generated
 						GenerateChunk(coords);
 					}
 				}
@@ -299,6 +287,7 @@ public partial class TerrainGeneration : Node
 		//InterpolateNormals(vertices, normals);
 		GenerateGeometry(chunkCoords, vertices, normals, biomeValues, biomeInfluences);
 	}
+	/*
 	void PreparePointsOfInterest()
 	{
 		if (pointsOfInterest == null || pointsOfInterest.Length == 0) return;
@@ -428,148 +417,26 @@ public partial class TerrainGeneration : Node
 			}
 		}
 	}
-	void DetermineBiomes(Vector3I chunkCoords)
-	{
-		//GD.Print($"Generating noise caves for chunk: {chunkCoords}");
-		float[,,] cells = GetChunk(chunkCoords.X, chunkCoords.Y, chunkCoords.Z);
-		int chunkPositionX = ChunkIndexToWorld(chunkCoords.X, chunkSizeX);
-		int chunkPositionY = ChunkIndexToWorld(chunkCoords.Y, chunkSizeY);
-		int chunkPositionZ = ChunkIndexToWorld(chunkCoords.Z, chunkSizeZ);
-		for (int x = 0; x < cells.GetLength(0); x++)
-		{
-			for (int y = 0; y < cells.GetLength(1); y++)
-			{
-				for (int z = 0; z < cells.GetLength(2); z++)
-				{
-					float[] biomeValues = new float[biomeNoises.Length];
-					for (int i = 0; i < biomeNoises.Length; i++)
-					{
-						biomeValues[i] = biomeNoises[i].GetNoise3D(x + chunkPositionX, y + chunkPositionY, z + chunkPositionZ);
-					}
-					int bestBiomeIndex = -1;
-					float minBiomeDeviation = float.MaxValue;
-					for (int i = 0; i < biomes.Length; i++)
-					{
-						float deviation = 0;
-						for (int j = 0; j < biomes[i].biomeWeights.Length; j++)
-						{
-							deviation += Mathf.Abs(biomeValues[j] - biomes[i].biomeWeights[j]);
-						}
-						if (deviation < minBiomeDeviation)
-						{
-							minBiomeDeviation = deviation;
-							bestBiomeIndex = i;
-						}
-					}
-					cellBiomes[chunkCoords][x, y, z] = bestBiomeIndex;
-				}
-			}
-		}
-	}
-	void GenerateNoiseCaves(Vector3I chunkCoords)
-	{
-		//GD.Print($"Generating noise caves for chunk: {chunkCoords}");
-		float[,,] cells = GetChunk(chunkCoords.X, chunkCoords.Y, chunkCoords.Z);
-		int chunkPositionX = ChunkIndexToWorld(chunkCoords.X, chunkSizeX);
-		int chunkPositionY = ChunkIndexToWorld(chunkCoords.Y, chunkSizeY);
-		int chunkPositionZ = ChunkIndexToWorld(chunkCoords.Z, chunkSizeZ);
-
-		if (chunkCoords.Y > 0)
-		{
-			for (int x = 0; x < cells.GetLength(0); x++)
-			{
-				for (int y = 0; y < cells.GetLength(1); y++)
-				{
-					for (int z = 0; z < cells.GetLength(2); z++)
-					{
-						cells[x, y, z] = -1;
-						cellBiomes[chunkCoords][x, y, z] = 0; // Mark all cells as part of a cave
-					}
-				}
-			}
-			return;
-		}
-
-		if (chunkCoords.Y == 0)
-		{
-			if ((chunkCoords.X == 0 || chunkCoords.X == -1) && (chunkCoords.Z == 0 || chunkCoords.Z == -1))
-			{
-				for (int x = 0; x < cells.GetLength(0); x++)
-				{
-					for (int z = 0; z < cells.GetLength(2); z++)
-					{
-						cells[x, 0, z] = rng.RandfRange(0, 1); // Mark the floor as part of a cave
-					}
-				}
-				for (int x = 0; x < cells.GetLength(0); x++)
-				{
-					for (int y = 1; y < cells.GetLength(1); y++)
-					{
-						for (int z = 0; z < cells.GetLength(2); z++)
-						{
-							cells[x, y, z] = -1;
-							cellBiomes[chunkCoords][x, y, z] = 0;
-						}
-					}
-				}
-				return;
-			}
-			for (int x = 0; x < cells.GetLength(0); x++)
-				{
-					for (int z = 0; z < cells.GetLength(2); z++)
-					{
-						cells[x, 0, z] = rng.RandfRange(-0.5f, 1); // Mark the floor as part of a cave
-					}
-				}
-			for (int x = 0; x < cells.GetLength(0); x++)
-			{
-				for (int y = 1; y < cells.GetLength(1); y++)
-				{
-					for (int z = 0; z < cells.GetLength(2); z++)
-					{
-						cells[x, y, z] = -1;
-						cellBiomes[chunkCoords][x, y, z] = 0;
-					}
-				}
-			}
-			return;
-		}
-
-		for (int x = 0; x < cells.GetLength(0); x++)
-		{
-			for (int y = 0; y < cells.GetLength(1); y++)
-			{
-				for (int z = 0; z < cells.GetLength(2); z++)
-				{
-					float cellValue = cells[x, y, z];
-					if (cellValue > 0.0000001f && cellValue < -0.0000001f)
-					{
-						continue;
-					}
-					cells[x, y, z] = biomes[cellBiomes[chunkCoords][x, y, z]].GetNoiseValue(x + chunkPositionX, y + chunkPositionY, z + chunkPositionZ);
-				}
-			}
-		}
-	}
+	*/
+	
+	
 	void MarchingCubesAlgorithm(Vector3I chunkCoords, List<Vector3> vertices, List<Vector3> normals, List<Color> biomeValues, List<Vector2> biomeInfluences)
 	{
-		int chunkPositionX = ChunkIndexToWorld(chunkCoords.X, chunkSizeX);
-		int chunkPositionY = ChunkIndexToWorld(chunkCoords.Y, chunkSizeY);
-		int chunkPositionZ = ChunkIndexToWorld(chunkCoords.Z, chunkSizeZ);
+		Vector3I chunkPosition = world.ChunkIndexToWorld(chunkCoords);
 
-		float[,,] cells = new float[chunkSizeX + 2, chunkSizeY + 2, chunkSizeZ + 2];
-		for (int x = 0; x < chunkSizeX + 2; x++)
+		float[,,] cells = new float[world.chunkSize.X + 2, world.chunkSize.Y + 2, world.chunkSize.Z + 2];
+		for (int x = 0; x < world.chunkSize.X + 2; x++)
 		{
-			for (int y = 0; y < chunkSizeY + 2; y++)
+			for (int y = 0; y < world.chunkSize.Y + 2; y++)
 			{
-				for (int z = 0; z < chunkSizeZ + 2; z++)
+				for (int z = 0; z < world.chunkSize.Z + 2; z++)
 				{
-					cells[x, y, z] = GetCellFromWorld(chunkPositionX + x - 1, chunkPositionY + y - 1, chunkPositionZ + z - 1);
+					cells[x, y, z] = world.GetCellFromWorld(chunkPosition + new Vector3I(x - 1, y - 1, z - 1)).score;
 				}
 			}
 		}
 
-		//GD.Print($"Marching cubes algorithm started at chunk: {chunkCoords} with position: ({chunkPositionX}, {chunkPositionY}, {chunkPositionZ})");
+		//GD.Print($"Marching cubes algorithm started at chunk: {chunkCoords} with position: ({chunkPosition.X}, {chunkPosition.Y}, {chunkPositionZ})");
 		//GD.Print("Marching cubes algorithm");
 		for (int i = 0; i < cells.GetLength(0) - 1; i++)
 		{
@@ -611,51 +478,51 @@ public partial class TerrainGeneration : Node
 					Vector3[] edgeVertices = new Vector3[12];
 					if ((MarchTables.edges[cubeIndex] & 1) == 1)
 					{
-						edgeVertices[0] = VertexInterpolation(new Vector3(i + chunkPositionX, j + chunkPositionY, k + chunkPositionZ), new Vector3(i + chunkPositionX + 1, j + chunkPositionY, k + chunkPositionZ), cells[i, j, k], cells[i + 1, j, k]);
+						edgeVertices[0] = VertexInterpolation(new Vector3(i + chunkPosition.X, j + chunkPosition.Y, k + chunkPosition.Z), new Vector3(i + chunkPosition.X + 1, j + chunkPosition.Y, k + chunkPosition.Z), cells[i, j, k], cells[i + 1, j, k]);
 					}
 					if ((MarchTables.edges[cubeIndex] & 2) == 2)
 					{
-						edgeVertices[1] = VertexInterpolation(new Vector3(i + chunkPositionX + 1, j + chunkPositionY, k + chunkPositionZ), new Vector3(i + chunkPositionX + 1, j + chunkPositionY, k + chunkPositionZ + 1), cells[i + 1, j, k], cells[i + 1, j, k + 1]);
+						edgeVertices[1] = VertexInterpolation(new Vector3(i + chunkPosition.X + 1, j + chunkPosition.Y, k + chunkPosition.Z), new Vector3(i + chunkPosition.X + 1, j + chunkPosition.Y, k + chunkPosition.Z + 1), cells[i + 1, j, k], cells[i + 1, j, k + 1]);
 					}
 					if ((MarchTables.edges[cubeIndex] & 4) == 4)
 					{
-						edgeVertices[2] = VertexInterpolation(new Vector3(i + chunkPositionX + 1, j + chunkPositionY, k + chunkPositionZ + 1), new Vector3(i + chunkPositionX, j + chunkPositionY, k + chunkPositionZ + 1), cells[i + 1, j, k + 1], cells[i, j, k + 1]);
+						edgeVertices[2] = VertexInterpolation(new Vector3(i + chunkPosition.X + 1, j + chunkPosition.Y, k + chunkPosition.Z + 1), new Vector3(i + chunkPosition.X, j + chunkPosition.Y, k + chunkPosition.Z + 1), cells[i + 1, j, k + 1], cells[i, j, k + 1]);
 					}
 					if ((MarchTables.edges[cubeIndex] & 8) == 8)
 					{
-						edgeVertices[3] = VertexInterpolation(new Vector3(i + chunkPositionX, j + chunkPositionY, k + chunkPositionZ + 1), new Vector3(i + chunkPositionX, j + chunkPositionY, k + chunkPositionZ), cells[i, j, k + 1], cells[i, j, k]);
+						edgeVertices[3] = VertexInterpolation(new Vector3(i + chunkPosition.X, j + chunkPosition.Y, k + chunkPosition.Z + 1), new Vector3(i + chunkPosition.X, j + chunkPosition.Y, k + chunkPosition.Z), cells[i, j, k + 1], cells[i, j, k]);
 					}
 					if ((MarchTables.edges[cubeIndex] & 16) == 16)
 					{
-						edgeVertices[4] = VertexInterpolation(new Vector3(i + chunkPositionX, j + chunkPositionY + 1, k + chunkPositionZ), new Vector3(i + chunkPositionX + 1, j + chunkPositionY + 1, k + chunkPositionZ), cells[i, j + 1, k], cells[i + 1, j + 1, k]);
+						edgeVertices[4] = VertexInterpolation(new Vector3(i + chunkPosition.X, j + chunkPosition.Y + 1, k + chunkPosition.Z), new Vector3(i + chunkPosition.X + 1, j + chunkPosition.Y + 1, k + chunkPosition.Z), cells[i, j + 1, k], cells[i + 1, j + 1, k]);
 					}
 					if ((MarchTables.edges[cubeIndex] & 32) == 32)
 					{
-						edgeVertices[5] = VertexInterpolation(new Vector3(i + chunkPositionX + 1, j + chunkPositionY + 1, k + chunkPositionZ), new Vector3(i + chunkPositionX + 1, j + chunkPositionY + 1, k + chunkPositionZ + 1), cells[i + 1, j + 1, k], cells[i + 1, j + 1, k + 1]);
+						edgeVertices[5] = VertexInterpolation(new Vector3(i + chunkPosition.X + 1, j + chunkPosition.Y + 1, k + chunkPosition.Z), new Vector3(i + chunkPosition.X + 1, j + chunkPosition.Y + 1, k + chunkPosition.Z + 1), cells[i + 1, j + 1, k], cells[i + 1, j + 1, k + 1]);
 					}
 					if ((MarchTables.edges[cubeIndex] & 64) == 64)
 					{
-						edgeVertices[6] = VertexInterpolation(new Vector3(i + chunkPositionX + 1, j + chunkPositionY + 1, k + chunkPositionZ + 1), new Vector3(i + chunkPositionX, j + chunkPositionY + 1, k + chunkPositionZ + 1), cells[i + 1, j + 1, k + 1], cells[i, j + 1, k + 1]);
+						edgeVertices[6] = VertexInterpolation(new Vector3(i + chunkPosition.X + 1, j + chunkPosition.Y + 1, k + chunkPosition.Z + 1), new Vector3(i + chunkPosition.X, j + chunkPosition.Y + 1, k + chunkPosition.Z + 1), cells[i + 1, j + 1, k + 1], cells[i, j + 1, k + 1]);
 					}
 					if ((MarchTables.edges[cubeIndex] & 128) == 128)
 					{
-						edgeVertices[7] = VertexInterpolation(new Vector3(i + chunkPositionX, j + chunkPositionY + 1, k + chunkPositionZ + 1), new Vector3(i + chunkPositionX, j + chunkPositionY + 1, k + chunkPositionZ), cells[i, j + 1, k + 1], cells[i, j + 1, k]);
+						edgeVertices[7] = VertexInterpolation(new Vector3(i + chunkPosition.X, j + chunkPosition.Y + 1, k + chunkPosition.Z + 1), new Vector3(i + chunkPosition.X, j + chunkPosition.Y + 1, k + chunkPosition.Z), cells[i, j + 1, k + 1], cells[i, j + 1, k]);
 					}
 					if ((MarchTables.edges[cubeIndex] & 256) == 256)
 					{
-						edgeVertices[8] = VertexInterpolation(new Vector3(i + chunkPositionX, j + chunkPositionY, k + chunkPositionZ), new Vector3(i + chunkPositionX, j + chunkPositionY + 1, k + chunkPositionZ), cells[i, j, k], cells[i, j + 1, k]);
+						edgeVertices[8] = VertexInterpolation(new Vector3(i + chunkPosition.X, j + chunkPosition.Y, k + chunkPosition.Z), new Vector3(i + chunkPosition.X, j + chunkPosition.Y + 1, k + chunkPosition.Z), cells[i, j, k], cells[i, j + 1, k]);
 					}
 					if ((MarchTables.edges[cubeIndex] & 512) == 512)
 					{
-						edgeVertices[9] = VertexInterpolation(new Vector3(i + chunkPositionX + 1, j + chunkPositionY, k + chunkPositionZ), new Vector3(i + chunkPositionX + 1, j + chunkPositionY + 1, k + chunkPositionZ), cells[i + 1, j, k], cells[i + 1, j + 1, k]);
+						edgeVertices[9] = VertexInterpolation(new Vector3(i + chunkPosition.X + 1, j + chunkPosition.Y, k + chunkPosition.Z), new Vector3(i + chunkPosition.X + 1, j + chunkPosition.Y + 1, k + chunkPosition.Z), cells[i + 1, j, k], cells[i + 1, j + 1, k]);
 					}
 					if ((MarchTables.edges[cubeIndex] & 1024) == 1024)
 					{
-						edgeVertices[10] = VertexInterpolation(new Vector3(i + chunkPositionX + 1, j + chunkPositionY, k + chunkPositionZ + 1), new Vector3(i + chunkPositionX + 1, j + chunkPositionY + 1, k + chunkPositionZ + 1), cells[i + 1, j, k + 1], cells[i + 1, j + 1, k + 1]);
+						edgeVertices[10] = VertexInterpolation(new Vector3(i + chunkPosition.X + 1, j + chunkPosition.Y, k + chunkPosition.Z + 1), new Vector3(i + chunkPosition.X + 1, j + chunkPosition.Y + 1, k + chunkPosition.Z + 1), cells[i + 1, j, k + 1], cells[i + 1, j + 1, k + 1]);
 					}
 					if ((MarchTables.edges[cubeIndex] & 2048) == 2048)
 					{
-						edgeVertices[11] = VertexInterpolation(new Vector3(i + chunkPositionX, j + chunkPositionY, k + chunkPositionZ + 1), new Vector3(i + chunkPositionX, j + chunkPositionY + 1, k + chunkPositionZ + 1), cells[i, j, k + 1], cells[i, j + 1, k + 1]);
+						edgeVertices[11] = VertexInterpolation(new Vector3(i + chunkPosition.X, j + chunkPosition.Y, k + chunkPosition.Z + 1), new Vector3(i + chunkPosition.X, j + chunkPosition.Y + 1, k + chunkPosition.Z + 1), cells[i, j, k + 1], cells[i, j + 1, k + 1]);
 					}
 
 					for (int l = 0; MarchTables.triangles[cubeIndex, l] != -1; l += 3)
@@ -668,9 +535,9 @@ public partial class TerrainGeneration : Node
 						normals.Add(normal);
 						normals.Add(normal);
 
-						float vertex1Biome = GetCellBiomeFromWorld(Mathf.RoundToInt(vertices[vertices.Count - 3].X), Mathf.RoundToInt(vertices[vertices.Count - 3].Y), Mathf.RoundToInt(vertices[vertices.Count - 3].Z)) / (float)biomes.Length;
-						float vertex2Biome = GetCellBiomeFromWorld(Mathf.RoundToInt(vertices[vertices.Count - 2].X), Mathf.RoundToInt(vertices[vertices.Count - 2].Y), Mathf.RoundToInt(vertices[vertices.Count - 2].Z)) / (float)biomes.Length;
-						float vertex3Biome = GetCellBiomeFromWorld(Mathf.RoundToInt(vertices[vertices.Count - 1].X), Mathf.RoundToInt(vertices[vertices.Count - 1].Y), Mathf.RoundToInt(vertices[vertices.Count - 1].Z)) / (float)biomes.Length;
+						float vertex1Biome = world.GetCellFromWorld((Vector3I)vertices[vertices.Count - 3].Round()).biome / (float)world.biomes.Length;
+						float vertex2Biome = world.GetCellFromWorld((Vector3I)vertices[vertices.Count - 2].Round()).biome / (float)world.biomes.Length;
+						float vertex3Biome = world.GetCellFromWorld((Vector3I)vertices[vertices.Count - 1].Round()).biome / (float)world.biomes.Length;
 
 						biomeValues.Add(new Color(vertex1Biome, vertex2Biome, vertex3Biome, 1f));
 						biomeValues.Add(new Color(vertex1Biome, vertex2Biome, vertex3Biome, 0f));
@@ -715,7 +582,7 @@ public partial class TerrainGeneration : Node
 
 		collisionShape.Shape = meshInstance.Mesh.CreateTrimeshShape();
 
-		chunkMeshes[chunkCoords] = meshInstance;
+		world.GetChunk(chunkCoords).mesh = meshInstance;
 
 		CallDeferred(nameof(ApplyGeometry), meshInstance, collisionShape);
 	}
@@ -725,122 +592,5 @@ public partial class TerrainGeneration : Node
 		chunkBody.AddChild(collisionShape);
 		meshInstance.AddChild(chunkBody);
 		AddChild(meshInstance);
-	}
-	int WorldToChunkIndex(int worldCoord, int chunkSize)
-	{
-		if (worldCoord < 0)
-		{
-			return (worldCoord + 1) / chunkSize - 1; // Adjust for negative coordinates
-		}
-		else
-		{
-			return worldCoord / chunkSize;
-		}
-	}
-	int WorldToChunkOffset(int worldCoord, int chunkSize)
-	{
-		if (worldCoord < 0)
-		{
-			return (worldCoord % chunkSize + chunkSize) % chunkSize; // Adjust for negative coordinates
-		}
-		else
-		{
-			return worldCoord % chunkSize;
-		}
-	}
-	int ChunkIndexToWorld(int chunkIndex, int chunkSize)
-	{
-		if (chunkIndex < 0)
-		{
-			return chunkIndex * chunkSize; // Adjust for negative coordinates
-		}
-		else
-		{
-			return chunkIndex * chunkSize;
-		}
-	}
-	/// <summary>
-	/// Get the chunk at the specified chunk coordinates.
-	/// </summary>
-	/// <param name="x">X chunk coordinate</param>
-	/// <param name="y">Y chunk coordinate</param>
-	/// <param name="z">Z chunk coordinate</param>
-	/// <returns></returns>
-	float[,,] GetChunk(int x, int y, int z)
-	{
-		Vector3I coords = new Vector3I(x, y, z);
-		if (chunks.TryGetValue(coords, out float[,,] chunk))
-		{
-			return chunk;
-		}
-		else
-		{
-			chunkGenerated[coords] = false;
-			chunks[coords] = new float[chunkSizeX, chunkSizeY, chunkSizeZ];
-			return chunks[coords];
-		}
-	}
-	float[,,] GetChunkFromWorld(int x, int y, int z)
-	{
-		int chunkX = WorldToChunkIndex(x, chunkSizeX);
-		int chunkY = WorldToChunkIndex(y, chunkSizeY);
-		int chunkZ = WorldToChunkIndex(z, chunkSizeZ);
-		return GetChunk(chunkX, chunkY, chunkZ);
-	}
-	float GetCellFromWorld(int x, int y, int z)
-	{
-		int chunkX = WorldToChunkIndex(x, chunkSizeX);
-		int chunkY = WorldToChunkIndex(y, chunkSizeY);
-		int chunkZ = WorldToChunkIndex(z, chunkSizeZ);
-		float[,,] chunk = GetChunk(chunkX, chunkY, chunkZ);
-		int offsetX = WorldToChunkOffset(x, chunkSizeX);
-		int offsetY = WorldToChunkOffset(y, chunkSizeY);
-		int offsetZ = WorldToChunkOffset(z, chunkSizeZ);
-		try
-		{
-			return chunk[offsetX, offsetY, offsetZ];
-		}
-		catch (IndexOutOfRangeException)
-		{
-			//GD.PrintErr($"GetCellFromWorld: Out of range for chunk ({chunkX}, {chunkY}, {chunkZ}) at offset ({offsetX}, {offsetY}, {offsetZ}), coordinates ({x}, {y}, {z})\nWorld to chunk index z: {z} / )");
-			return chunk[offsetX, offsetY, offsetZ];
-		}
-	}
-	int GetCellBiomeFromWorld(int x, int y, int z)
-	{
-		int chunkX = WorldToChunkIndex(x, chunkSizeX);
-		int chunkY = WorldToChunkIndex(y, chunkSizeY);
-		int chunkZ = WorldToChunkIndex(z, chunkSizeZ);
-		if (cellBiomes.TryGetValue(new Vector3I(chunkX, chunkY, chunkZ), out int[,,] biomes))
-		{
-			int offsetX = WorldToChunkOffset(x, chunkSizeX);
-			int offsetY = WorldToChunkOffset(y, chunkSizeY);
-			int offsetZ = WorldToChunkOffset(z, chunkSizeZ);
-			return biomes[offsetX, offsetY, offsetZ];
-		}
-		GD.PrintErr($"GetCellBiomeFromWorld: Biome not found for chunk ({chunkX}, {chunkY}, {chunkZ}) at offset ({WorldToChunkOffset(x, chunkSizeX)}, {WorldToChunkOffset(y, chunkSizeY)}, {WorldToChunkOffset(z, chunkSizeZ)}), coordinates ({x}, {y}, {z})");
-		return -1; // Return -1 if the biome is not found
-	}
-	void SetCellFromWorld(int x, int y, int z, float value)
-	{
-		int chunkX = WorldToChunkIndex(x, chunkSizeX);
-		int chunkY = WorldToChunkIndex(y, chunkSizeY);
-		int chunkZ = WorldToChunkIndex(z, chunkSizeZ);
-		float[,,] chunk = GetChunk(chunkX, chunkY, chunkZ);
-		int offsetX = WorldToChunkOffset(x, chunkSizeX);
-		int offsetY = WorldToChunkOffset(y, chunkSizeY);
-		int offsetZ = WorldToChunkOffset(z, chunkSizeZ);
-		chunk[offsetX, offsetY, offsetZ] = value;
-	}
-	void SetChunk(int x, int y, int z, float[,,] chunk)
-	{
-		chunks[new Vector3I(x, y, z)] = chunk;
-	}
-	void SetChunkFromWorld(int x, int y, int z, float[,,] chunk)
-	{
-		int chunkX = WorldToChunkIndex(x, chunkSizeX);
-		int chunkY = WorldToChunkIndex(y, chunkSizeY);
-		int chunkZ = WorldToChunkIndex(z, chunkSizeZ);
-		chunks[new Vector3I(chunkX, chunkY, chunkZ)] = chunk;
 	}
 }
