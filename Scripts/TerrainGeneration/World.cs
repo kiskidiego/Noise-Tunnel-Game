@@ -1,6 +1,7 @@
 using Godot;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 
 [GlobalClass]
 public partial class World : Resource
@@ -56,17 +57,8 @@ public partial class World : Resource
 			return chunk;
 		}
 		chunk = new Chunk();
-		chunk.cells = new Cell[chunkSize.X, chunkSize.Y, chunkSize.Z];
-		for (int x = 0; x < chunkSize.X; x++)
-		{
-			for (int y = 0; y < chunkSize.Y; y++)
-			{
-				for (int z = 0; z < chunkSize.Z; z++)
-				{
-					chunk.cells[x, y, z] = new Cell();
-				}
-			}
-		}
+		chunk.cellsScore = new float[chunkSize.X, chunkSize.Y, chunkSize.Z];
+		chunk.cellsBiome = new int[chunkSize.X, chunkSize.Y, chunkSize.Z];
 		chunks[chunkIndex] = chunk;
 		return chunk;
 	}
@@ -75,15 +67,23 @@ public partial class World : Resource
 		Vector3I chunkIndex = WorldToChunkIndex(worldPosition);
 		return GetChunk(chunkIndex);
 	}
-	public Cell GetCellFromWorld(Vector3I worldPosition)
+	public float GetCellScoreFromWorld(Vector3I worldPosition)
 	{
 		Chunk chunk = GetChunkFromWorld(worldPosition);
 		Vector3I chunkOffset = WorldToChunkOffset(worldPosition);
-		return chunk.cells[chunkOffset.X, chunkOffset.Y, chunkOffset.Z];
+		return chunk.cellsScore[chunkOffset.X, chunkOffset.Y, chunkOffset.Z];
+	}
+	public int GetCellBiomeFromWorld(Vector3I worldPosition)
+	{
+		Chunk chunk = GetChunkFromWorld(worldPosition);
+		Vector3I chunkOffset = WorldToChunkOffset(worldPosition);
+		return chunk.cellsBiome[chunkOffset.X, chunkOffset.Y, chunkOffset.Z];
 	}
 	public void SetCellScoreFromWorld(Vector3I worldPosition, float score)
 	{
-		GetCellFromWorld(worldPosition).score = score;
+		Chunk chunk = GetChunkFromWorld(worldPosition);
+		Vector3I chunkOffset = WorldToChunkOffset(worldPosition);
+		chunk.cellsScore[chunkOffset.X, chunkOffset.Y, chunkOffset.Z] = score;
 	}
 	public void DetermineBiomes(Vector3I chunkCoords)
 	{
@@ -115,7 +115,7 @@ public partial class World : Resource
 							bestBiomeIndex = i;
 						}
 					}
-					chunk.cells[x, y, z].biome = bestBiomeIndex;
+					chunk.cellsBiome[x, y, z] = bestBiomeIndex;
 				}
 			}
 		}
@@ -125,7 +125,7 @@ public partial class World : Resource
 		//GD.Print($"Generating noise caves for chunk: {chunkCoords}");
 		Chunk chunk = GetChunk(chunkCoords);
 
-		if (chunkCoords.Y > ceiling)
+		if (chunkCoords.Y >= ceiling)
 		{
 			for (int x = 0; x < chunkSize.X; x++)
 			{
@@ -133,47 +133,13 @@ public partial class World : Resource
 				{
 					for (int z = 0; z < chunkSize.Z; z++)
 					{
-						float cellValue = chunk.cells[x, 0, z].score;
+						float cellValue = chunk.cellsScore[x, 0, z];
 						if (cellValue > 0.0000001f && cellValue < -0.0000001f)
 						{
 							continue;
 						}
-						chunk.cells[x, y, z].score = -1;
-						chunk.cells[x, y, z].biome = 0;
-					}
-				}
-			}
-			return;
-		}
-
-		if (chunkCoords.Y == ceiling)
-		{
-			for (int x = 0; x < chunkSize.X; x++)
-			{
-				for (int z = 0; z < chunkSize.Z; z++)
-				{
-					float cellValue = chunk.cells[x, 0, z].score;
-					if (cellValue > 0.0000001f && cellValue < -0.0000001f)
-					{
-						continue;
-					}
-					chunk.cells[x, 0, z].score = -1;
-					chunk.cells[x, 0, z].biome = 0;
-				}
-			}
-			for (int x = 0; x < chunkSize.X; x++)
-			{
-				for (int y = 1; y < chunkSize.Y; y++)
-				{
-					for (int z = 0; z < chunkSize.Z; z++)
-					{
-						float cellValue = chunk.cells[x, y, z].score;
-						if (cellValue > 0.0000001f && cellValue < -0.0000001f)
-						{
-							continue;
-						}
-						chunk.cells[x, y, z].score = -1;
-						chunk.cells[x, y, z].biome = 0;
+						chunk.cellsScore[x, y, z] = -1;
+						chunk.cellsBiome[x, y, z] = 0;
 					}
 				}
 			}
@@ -182,18 +148,39 @@ public partial class World : Resource
 
 		Vector3I chunkPosition = ChunkIndexToWorld(chunkCoords);
 
+		if (chunkCoords.Y == ceiling - 1)
+		{
+			for (int x = 0; x < chunkSize.X; x++)
+			{
+				for (int y = 0; y < chunkSize.Y; y++)
+				{
+					for (int z = 0; z < chunkSize.Z; z++)
+					{
+						float cellValue = chunk.cellsScore[x, y, z];
+						if (cellValue > 0.0000001f && cellValue < -0.0000001f)
+						{
+							continue;
+						}
+						chunk.cellsScore[x, y, z] = biomes[chunk.cellsBiome[x, y, z]].GetNoiseValue(x + chunkPosition.X, y + chunkPosition.Y, z + chunkPosition.Z);
+					}
+				}
+			}
+			SetCellScoreFromWorld(new Vector3I(-1, -1, -1), 1);
+			return;
+		}
+		
 		for (int x = 0; x < chunkSize.X; x++)
 		{
 			for (int y = 0; y < chunkSize.Y; y++)
 			{
 				for (int z = 0; z < chunkSize.Z; z++)
 				{
-					float cellValue = chunk.cells[x, y, z].score;
+					float cellValue = chunk.cellsScore[x, y, z];
 					if (cellValue > 0.0000001f && cellValue < -0.0000001f)
 					{
 						continue;
 					}
-					chunk.cells[x, y, z].score = biomes[chunk.cells[x, y, z].biome].GetNoiseValue(x + chunkPosition.X, y + chunkPosition.Y, z + chunkPosition.Z);
+					chunk.cellsScore[x, y, z] = biomes[chunk.cellsBiome[x, y, z]].GetNoiseValue(x + chunkPosition.X, y + chunkPosition.Y, z + chunkPosition.Z);
 				}
 			}
 		}

@@ -4,24 +4,25 @@ using System;
 [GlobalClass]
 public partial class Chunk : Resource
 {
-    public Cell[,,] cells;
+    public float[,,] cellsScore;
+    public int[,,] cellsBiome;
     public bool scored = false;
     public bool generated = false;
     public MeshInstance3D mesh = null;
     public float GetCellScore(int x, int y, int z)
     {
-        return cells[x, y, z].score;
+        return cellsScore[x, y, z];
     }
     public int GetCellBiome(int x, int y, int z)
     {
-        return cells[x, y, z].biome;
+        return cellsBiome[x, y, z];
     }
     public void SetCellScore(int x, int y, int z, float score)
     {
-        cells[x, y, z].score = score;
+        cellsScore[x, y, z] = score;
     }
     public void SetCellBiome(int x, int y, int z, int biome)
     {
-        cells[x, y, z].biome = biome;
+        cellsBiome[x, y, z] = biome;
     }
 }

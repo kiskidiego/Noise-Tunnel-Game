@@ -2,10 +2,10 @@ using Godot;
 using System;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-using System.Collections.Concurrent;
 using Array = Godot.Collections.Array;
 using System.Linq;
 using Godot.Collections;
+using System.Collections.Concurrent;
 
 
 public partial class TerrainGeneration : Node
@@ -23,6 +23,7 @@ public partial class TerrainGeneration : Node
 	[Export] Player player;
 	RandomNumberGenerator rng = new RandomNumberGenerator();
 	Vector3I currentChunkCoords = new Vector3I(int.MaxValue, int.MaxValue, int.MaxValue);
+	ConcurrentBag<Vector3I> loadedChunks = new ConcurrentBag<Vector3I>();
 	bool generating = false;
 	bool firstGeneration = true; // Flag to indicate if this is the first generation
 	float floorHeight = 0;
@@ -80,7 +81,7 @@ public partial class TerrainGeneration : Node
 	}
 	void ChooseInitialSpawnPoint()
 	{
-		while ((!player.ValidatePosition()) || world.GetCellFromWorld((Vector3I)player.GlobalPosition).score > floorHeight - 0.5f)
+		while ((!player.ValidatePosition()) || world.GetCellScoreFromWorld((Vector3I)player.GlobalPosition) > floorHeight - 0.5f)
 		{
 			player.GlobalPosition += new Vector3(rng.RandiRange(-1, 1), rng.RandiRange(-1, 1), rng.RandiRange(-1, 1)); // Move the player up until they are above the floor
 			if (GenerateFromWorldPosition(player.GlobalPosition))
@@ -163,7 +164,7 @@ public partial class TerrainGeneration : Node
 
 		foreach (var cell in cells)
 		{
-			float cellValue = world.GetCellFromWorld(cell).score;
+			float cellValue = world.GetCellScoreFromWorld(cell);
 			cellValue += terraformPotency;
 			cellValue = Mathf.Clamp(cellValue, -1f, 1f); // Ensure the value is within the valid range
 			world.SetCellScoreFromWorld(cell, cellValue);
@@ -225,9 +226,29 @@ public partial class TerrainGeneration : Node
 		generating = true;
 		currentChunkCoords = chunkCoords;
 
+		CheckLoadedChunks(chunkCoords);
+
 		GenerateFromAsync(chunkCoords);
 		return true;
 	}
+	void CheckLoadedChunks(Vector3I chunkCoords)
+	{
+		if (loadedChunks.Count == 0) return; // No loaded chunks to check
+		foreach (var loadedChunk in loadedChunks)
+		{
+			if (Math.Abs(loadedChunk.X - chunkCoords.X) > chunkDistance ||
+				Math.Abs(loadedChunk.Y - chunkCoords.Y) > chunkDistance ||
+				Math.Abs(loadedChunk.Z - chunkCoords.Z) > chunkDistance)
+			{
+				Chunk chunk = world.GetChunk(loadedChunk);
+				chunk.mesh?.QueueFree(); // Free the mesh if it's outside the chunk distance
+				chunk.mesh = null; // Set the mesh to null to avoid memory leaks
+				chunk.generated = false; // Mark chunk as not generated
+			}
+		}
+		loadedChunks.Clear(); // Clear the loaded chunks after checking
+	}
+
 	async void GenerateFromAsync(Vector3I chunkCoords)
 	{
 		await Task.Run(() =>
@@ -240,6 +261,7 @@ public partial class TerrainGeneration : Node
 					for (int z = -chunkDistance - 1; z <= chunkDistance + 1; z++)
 					{
 						Vector3I coords = new Vector3I(chunkCoords.X + x, chunkCoords.Y + y, chunkCoords.Z + z);
+						loadedChunks.Add(coords);
 						Chunk chunk = world.GetChunk(coords);
 						if (chunk.scored)
 						{
@@ -272,7 +294,7 @@ public partial class TerrainGeneration : Node
 			}
 		});
 		generating = false; // Reset generating flag after generation is done
-		if(firstGeneration)
+		if (firstGeneration)
 		{
 			ChooseInitialSpawnPoint();
 		}
@@ -431,7 +453,7 @@ public partial class TerrainGeneration : Node
 			{
 				for (int z = 0; z < world.chunkSize.Z + 2; z++)
 				{
-					cells[x, y, z] = world.GetCellFromWorld(chunkPosition + new Vector3I(x - 1, y - 1, z - 1)).score;
+					cells[x, y, z] = world.GetCellScoreFromWorld(chunkPosition + new Vector3I(x - 1, y - 1, z - 1));
 				}
 			}
 		}
@@ -535,9 +557,9 @@ public partial class TerrainGeneration : Node
 						normals.Add(normal);
 						normals.Add(normal);
 
-						float vertex1Biome = world.GetCellFromWorld((Vector3I)vertices[vertices.Count - 3].Round()).biome / (float)world.biomes.Length;
-						float vertex2Biome = world.GetCellFromWorld((Vector3I)vertices[vertices.Count - 2].Round()).biome / (float)world.biomes.Length;
-						float vertex3Biome = world.GetCellFromWorld((Vector3I)vertices[vertices.Count - 1].Round()).biome / (float)world.biomes.Length;
+						float vertex1Biome = world.GetCellBiomeFromWorld((Vector3I)vertices[vertices.Count - 3].Round()) / (float)world.biomes.Length;
+						float vertex2Biome = world.GetCellBiomeFromWorld((Vector3I)vertices[vertices.Count - 2].Round()) / (float)world.biomes.Length;
+						float vertex3Biome = world.GetCellBiomeFromWorld((Vector3I)vertices[vertices.Count - 1].Round()) / (float)world.biomes.Length;
 
 						biomeValues.Add(new Color(vertex1Biome, vertex2Biome, vertex3Biome, 1f));
 						biomeValues.Add(new Color(vertex1Biome, vertex2Biome, vertex3Biome, 0f));

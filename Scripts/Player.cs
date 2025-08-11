@@ -395,6 +395,8 @@ public partial class Player : CharacterBody3D
 	}
 	void StartClimbing()
 	{
+		StopGrapplePull(); // Stop any grapple pulling when starting to climb
+		StopGrappleSwing(); // Stop any grapple swinging when starting to climb
 		GD.Print("Starting to climb");
 		isClimbing = true;
 		
@@ -486,6 +488,7 @@ public partial class Player : CharacterBody3D
 	}
 	void StartGrapplePull()
 	{
+		StopClimbing();
 		isGrapplePulling = true; // Set the grapple pulling flag
 		grapplingHookMesh.Visible = true; // Show the grappling hook mesh
 	}
@@ -497,6 +500,7 @@ public partial class Player : CharacterBody3D
 	}
 	void StartGrappleSwing()
 	{
+		StopClimbing();
 		airSpeed = grapplePullSpeed;
 		isGrappleSwinging = true; // Set the grapple swinging flag
 		grapplingHookMesh.Visible = true; // Show the grappling hook mesh
