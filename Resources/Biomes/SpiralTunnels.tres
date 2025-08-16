@@ -2,9 +2,9 @@
 
 [ext_resource type="Script" uid="uid://ctdfpwa4em8mg" path="res://Scripts/TerrainGeneration/Biome.cs" id="1_cj421"]
 [ext_resource type="Script" uid="uid://dcorc0ais187x" path="res://Scripts/TerrainGeneration/BiomeNoiseFunction.cs" id="1_fw26l"]
-[ext_resource type="Texture2D" uid="uid://b8g0p5g0w6as6" path="res://Textures/Prism/baseColor.png" id="1_qgo0o"]
-[ext_resource type="Texture2D" uid="uid://d4ntc8bkednd2" path="res://Textures/Prism/metalRough.png" id="2_qgo0o"]
-[ext_resource type="Texture2D" uid="uid://qtfw0fktqi6i" path="res://Textures/Prism/normalMap.png" id="4_eug7v"]
+[ext_resource type="Texture2D" uid="uid://bbndlfrg0yv56" path="res://Textures/BlackIron/BaseColor.png" id="1_q32si"]
+[ext_resource type="Texture2D" uid="uid://5swu6nbsupu4" path="res://Textures/BlackIron/metalRough.png" id="2_qtd47"]
+[ext_resource type="Texture2D" uid="uid://bieh7yrpmbrho" path="res://Textures/BlackIron/Normal.png" id="4_185ek"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_acusk"]
 noise_type = 0
@@ -43,7 +43,7 @@ script = ExtResource("1_cj421")
 name = "Winding Tunnels"
 noiseFunctions = Array[Object]([SubResource("Resource_hr6dg"), SubResource("Resource_3yhdk")])
 biomeWeights = PackedFloat32Array(1, -1, -1)
-baseColorTexture = ExtResource("1_qgo0o")
-normalTexture = ExtResource("4_eug7v")
-metalRoughTexture = ExtResource("2_qgo0o")
+baseColorTexture = ExtResource("1_q32si")
+normalTexture = ExtResource("4_185ek")
+metalRoughTexture = ExtResource("2_qtd47")
 metadata/_custom_type_script = "uid://ctdfpwa4em8mg"

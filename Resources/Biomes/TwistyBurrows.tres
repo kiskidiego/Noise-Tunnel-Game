@@ -1,10 +1,10 @@
 [gd_resource type="Resource" script_class="Biome" load_steps=10 format=3 uid="uid://fpthu8jv5byn"]
 
 [ext_resource type="Script" uid="uid://dcorc0ais187x" path="res://Scripts/TerrainGeneration/BiomeNoiseFunction.cs" id="1_eq0pj"]
-[ext_resource type="Texture2D" uid="uid://iovyp60fgmpe" path="res://Textures/Prism/baseColorTest.png" id="1_o16db"]
+[ext_resource type="Texture2D" uid="uid://b7ruipbvtur33" path="res://Textures/Dirt/baseColor.png" id="1_o16db"]
 [ext_resource type="Script" uid="uid://ctdfpwa4em8mg" path="res://Scripts/TerrainGeneration/Biome.cs" id="1_y5oxc"]
-[ext_resource type="Texture2D" uid="uid://d4ntc8bkednd2" path="res://Textures/Prism/metalRough.png" id="2_o16db"]
-[ext_resource type="Texture2D" uid="uid://qtfw0fktqi6i" path="res://Textures/Prism/normalMap.png" id="4_gka0v"]
+[ext_resource type="Texture2D" uid="uid://djev538sega3n" path="res://Textures/Dirt/metalRough.png" id="2_fxbfc"]
+[ext_resource type="Texture2D" uid="uid://n1ikxrkobpuc" path="res://Textures/Dirt/normalMap.png" id="4_3sw4k"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_m4bej"]
 noise_type = 2
@@ -41,6 +41,6 @@ name = "Twisty Burrows"
 noiseFunctions = Array[Object]([SubResource("Resource_me2ss"), SubResource("Resource_fxbfc")])
 biomeWeights = PackedFloat32Array(-1, 1, 1)
 baseColorTexture = ExtResource("1_o16db")
-normalTexture = ExtResource("4_gka0v")
-metalRoughTexture = ExtResource("2_o16db")
+normalTexture = ExtResource("4_3sw4k")
+metalRoughTexture = ExtResource("2_fxbfc")
 metadata/_custom_type_script = "uid://ctdfpwa4em8mg"

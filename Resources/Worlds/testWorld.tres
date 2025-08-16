@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="World" load_steps=7 format=3 uid="uid://bca4k2tb7kacp"]
+
+[ext_resource type="Script" uid="uid://cp168tqvgibip" path="res://Scripts/TerrainGeneration/World.cs" id="1_tjofg"]
+[ext_resource type="Resource" uid="uid://d4iw3l7lpgmyx" path="res://Resources/Biomes/Surface.tres" id="1_wrn0f"]
+[ext_resource type="Resource" uid="uid://blpl3uw8a04y7" path="res://Resources/Biomes/BulbCaverns.tres" id="5_j3lre"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_81ihk"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_ihoi0"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_iaoxw"]
+
+[resource]
+script = ExtResource("1_tjofg")
+chunkSize = Vector3i(18, 18, 18)
+biomeNoises = Array[FastNoiseLite]([SubResource("FastNoiseLite_81ihk"), SubResource("FastNoiseLite_ihoi0"), SubResource("FastNoiseLite_iaoxw")])
+biomes = Array[Object]([ExtResource("1_wrn0f"), ExtResource("5_j3lre")])
+ceiling = 0
+metadata/_custom_type_script = "uid://cp168tqvgibip"

@@ -15,7 +15,7 @@ dest_files=["res://.godot/imported/baseColor.png-a096b32bd20d9528fa82a2d6a9052dd
 
 [params]
 
-compress/mode=0
+compress/mode=3
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/hdr_compression=1

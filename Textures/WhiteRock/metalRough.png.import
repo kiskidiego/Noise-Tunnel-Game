@@ -15,7 +15,7 @@ dest_files=["res://.godot/imported/metalRough.png-9e18b17de457306ec2a557b28e70bb
 
 [params]
 
-compress/mode=0
+compress/mode=3
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/hdr_compression=1

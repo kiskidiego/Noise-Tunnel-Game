@@ -1,10 +1,10 @@
 [gd_resource type="Resource" script_class="Biome" load_steps=12 format=3 uid="uid://blpl3uw8a04y7"]
 
 [ext_resource type="Script" uid="uid://ctdfpwa4em8mg" path="res://Scripts/TerrainGeneration/Biome.cs" id="1_3mdqi"]
+[ext_resource type="Texture2D" uid="uid://bturo3rssyvfv" path="res://Textures/BulbPlant/baseColor.png" id="1_dwbyw"]
 [ext_resource type="Script" uid="uid://dcorc0ais187x" path="res://Scripts/TerrainGeneration/BiomeNoiseFunction.cs" id="1_rdo7n"]
-[ext_resource type="Texture2D" uid="uid://cigpctk2wsjxv" path="res://Materials/textures/CustomUVChecker_byValle_1K.png" id="1_xpmnw"]
-[ext_resource type="Texture2D" uid="uid://d4ntc8bkednd2" path="res://Textures/Prism/metalRough.png" id="2_dwbyw"]
-[ext_resource type="Texture2D" uid="uid://qtfw0fktqi6i" path="res://Textures/Prism/normalMap.png" id="4_xb02g"]
+[ext_resource type="Texture2D" uid="uid://b8mirxfq1y6j2" path="res://Textures/BulbPlant/metalRough.png" id="2_xpmnw"]
+[ext_resource type="Texture2D" uid="uid://dgrqrokf8ksgf" path="res://Textures/BulbPlant/normalMap.png" id="4_ftpwo"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_bx0tr"]
 noise_type = 2
@@ -56,7 +56,7 @@ script = ExtResource("1_3mdqi")
 name = "Bulb Caverns"
 noiseFunctions = Array[Object]([SubResource("Resource_k8y56"), SubResource("Resource_xpmnw"), SubResource("Resource_xb02g")])
 biomeWeights = PackedFloat32Array(-1, -1, -1)
-baseColorTexture = ExtResource("1_xpmnw")
-normalTexture = ExtResource("4_xb02g")
-metalRoughTexture = ExtResource("2_dwbyw")
+baseColorTexture = ExtResource("1_dwbyw")
+normalTexture = ExtResource("4_ftpwo")
+metalRoughTexture = ExtResource("2_xpmnw")
 metadata/_custom_type_script = "uid://ctdfpwa4em8mg"
