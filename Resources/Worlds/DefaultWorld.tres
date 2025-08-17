@@ -9,10 +9,13 @@
 [ext_resource type="Resource" uid="uid://fpthu8jv5byn" path="res://Resources/Biomes/TwistyBurrows.tres" id="6_e6glj"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_7vn0r"]
+frequency = 0.005
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_pwlyn"]
+frequency = 0.005
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_uw2ls"]
+frequency = 0.005
 
 [resource]
 script = ExtResource("1_7vn0r")

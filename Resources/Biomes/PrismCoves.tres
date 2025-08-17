@@ -1,9 +1,9 @@
 [gd_resource type="Resource" script_class="Biome" load_steps=10 format=3 uid="uid://ci0805a3p3gdc"]
 
 [ext_resource type="Script" uid="uid://dcorc0ais187x" path="res://Scripts/TerrainGeneration/BiomeNoiseFunction.cs" id="1_dpaa2"]
-[ext_resource type="Texture2D" uid="uid://mqnbdh7vk431" path="res://Materials/textures/CustomUVChecker_byValle_1K2.png" id="1_mon2x"]
+[ext_resource type="Texture2D" uid="uid://b8g0p5g0w6as6" path="res://Textures/Prism/baseColor.png" id="1_mon2x"]
 [ext_resource type="Script" uid="uid://ctdfpwa4em8mg" path="res://Scripts/TerrainGeneration/Biome.cs" id="1_o0c38"]
-[ext_resource type="Texture2D" uid="uid://d4ntc8bkednd2" path="res://Textures/Prism/metalRough.png" id="2_mon2x"]
+[ext_resource type="Texture2D" uid="uid://cosl8ouasyk1v" path="res://Textures/Prism/metalRough.png" id="2_mon2x"]
 [ext_resource type="Texture2D" uid="uid://qtfw0fktqi6i" path="res://Textures/Prism/normalMap.png" id="4_fy5ej"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_xnen6"]

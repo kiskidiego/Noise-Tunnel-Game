@@ -1,7 +1,7 @@
 [gd_scene load_steps=6 format=3 uid="uid://bmybmrg77xp36"]
 
 [ext_resource type="Script" uid="uid://cy5g87y75oqc0" path="res://Scripts/TerrainGeneration/TerrainGeneration.cs" id="1_0d8tv"]
-[ext_resource type="Resource" uid="uid://bca4k2tb7kacp" path="res://Resources/Worlds/testWorld.tres" id="2_tkjes"]
+[ext_resource type="Resource" uid="uid://d1mlltvyfit0w" path="res://Resources/Worlds/DefaultWorld.tres" id="2_tkjes"]
 [ext_resource type="PackedScene" uid="uid://fn61atnmcc56" path="res://Scenes/Player.tscn" id="6_qwlrs"]
 [ext_resource type="Material" uid="uid://b8d2nce0e0miq" path="res://Scripts/Shaders/BaseTerrainMaterial.tres" id="8_j4raq"]
 
