@@ -24,7 +24,7 @@ rings = 1
 radius = 0.2
 height = 0.75
 
-[node name="Player" type="CharacterBody3D" node_paths=PackedStringArray("camRotator", "grappleOrigin", "interactionRay", "hookRay", "grapplingHookMesh", "cameraCover", "positionValidator", "cameraRotatorH", "climbingValidator")]
+[node name="Player" type="CharacterBody3D" node_paths=PackedStringArray("camRotator", "grappleOrigin", "interactionRay", "hookRay", "grapplingHookMesh", "cameraRotatorH", "climbingValidator")]
 collision_layer = 2
 floor_max_angle = 1.0472
 script = ExtResource("1_rpqav")
@@ -35,8 +35,6 @@ grappleOrigin = NodePath("CameraRotatorH/CameraRotatorV/Camera3D/GrappleOrigin")
 interactionRay = NodePath("CameraRotatorH/CameraRotatorV/Camera3D/InteractionRay")
 hookRay = NodePath("CameraRotatorH/CameraRotatorV/Camera3D/GrapplePullRay")
 grapplingHookMesh = NodePath("CameraRotatorH/CameraRotatorV/Camera3D/GrappleOrigin/GrappleMesh")
-cameraCover = NodePath("CanvasLayer/CameraCover")
-positionValidator = NodePath("PositionValidator")
 cameraRotatorH = NodePath("CameraRotatorH")
 climbingValidator = NodePath("ClimbWallDetector")
 
@@ -65,14 +63,6 @@ offset_bottom = 16.0
 grow_horizontal = 2
 grow_vertical = 2
 texture = ExtResource("2_kyqiw")
-
-[node name="CameraCover" type="ColorRect" parent="CanvasLayer"]
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-color = Color(0, 0, 0, 1)
 
 [node name="CameraRotatorH" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, 0)

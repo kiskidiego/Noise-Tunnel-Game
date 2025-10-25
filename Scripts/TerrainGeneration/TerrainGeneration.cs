@@ -20,23 +20,34 @@ public partial class TerrainGeneration : Node
 	*/
 	[Export] int chunkDistance = 2; // How many chunks away to generate
 	[Export] ShaderMaterial biomeBaseMaterial;
-	[Export] Player player;
 	RandomNumberGenerator rng = new RandomNumberGenerator();
 	Vector3I currentChunkCoords = new Vector3I(int.MaxValue, int.MaxValue, int.MaxValue);
 	ConcurrentBag<Vector3I> loadedChunks = new ConcurrentBag<Vector3I>();
 	bool generating = false;
 	bool firstGeneration = true; // Flag to indicate if this is the first generation
 	float floorHeight = 0;
-	
+
 	public override void _Ready()
 	{
 		PrepareTextures();
-		InitialGeneration();
+		InitializeSeed();
 	}
-    public override void _Process(double delta)
-    {
-        GenerateFromWorldPosition(player.GlobalPosition);
-    }
+
+	public override void _EnterTree()
+	{
+		EventManager.Subscribe(EventKeys.PLAYER_MOVED, OnPlayerMoved);
+	}
+
+	public override void _ExitTree()
+	{
+		EventManager.Unsubscribe(EventKeys.PLAYER_MOVED, OnPlayerMoved);
+	}
+	
+	void OnPlayerMoved(EventParameters parameters)
+	{
+		Vector3 playerPosition = parameters.Get<Vector3>(EventParameterKeys.POSITION);
+		GenerateFromWorldPosition(playerPosition);
+	}
 
 	void PrepareTextures()
 	{
@@ -61,7 +72,7 @@ public partial class TerrainGeneration : Node
 		biomeBaseMaterial.SetShaderParameter("metalRoughTexture", metalRoughTexture);
 		biomeBaseMaterial.SetShaderParameter("biomeAmount", world.biomes.Length);
 	}
-	void InitialGeneration()
+	void InitializeSeed()
 	{
 		if (seed == 0)
 		{
@@ -73,25 +84,6 @@ public partial class TerrainGeneration : Node
 			rng.Seed = (ulong)seed;
 		}
 		world.SetSeed(seed);
-
-		world.SetCellScoreFromWorld(new Vector3I(0, 0, 0), 100); // Set the initial floor height at the origin
-
-		//PreparePointsOfInterest();
-		GenerateFromWorldPosition(player.GlobalPosition);
-	}
-	void ChooseInitialSpawnPoint()
-	{
-		while ((!player.ValidatePosition()) || world.GetCellScoreFromWorld((Vector3I)player.GlobalPosition) > floorHeight - 0.5f)
-		{
-			player.GlobalPosition += new Vector3(rng.RandiRange(-1, 1), rng.RandiRange(-1, 1), rng.RandiRange(-1, 1)); // Move the player up until they are above the floor
-			if (GenerateFromWorldPosition(player.GlobalPosition))
-			{
-				return;
-			}
-			GD.Print($"Moving player to {player.GlobalPosition} to find a valid spawn point.");
-		}
-		firstGeneration = false; // Reset first generation flag
-		player.Activate(); // Activate the player after finding a valid spawn point
 	}
 	List<Vector3I> GetAllCellsInRadiusRecursive(Vector3I position, int radius)
 	{
@@ -223,6 +215,9 @@ public partial class TerrainGeneration : Node
 		Vector3I chunkCoords = world.WorldToChunkIndex((Vector3I)position);
 
 		if (currentChunkCoords == chunkCoords || generating) return false; // If the chunk is already generated or being generated, skip
+
+		EventManager.Invoke(EventKeys.TERRAIN_GENERATION_REQUESTED);
+		
 		generating = true;
 		currentChunkCoords = chunkCoords;
 
@@ -267,6 +262,7 @@ public partial class TerrainGeneration : Node
 						{
 							continue; // Skip already scored chunks
 						}
+						Logger.Log($"Determining biomes and generating noise caves for chunk: {coords}");
 						chunk.scored = true; // Mark chunk as scored
 						world.DetermineBiomes(coords);
 						world.GenerateNoiseCaves(coords);
@@ -287,6 +283,7 @@ public partial class TerrainGeneration : Node
 						{
 							continue; // Skip already generated chunks
 						}
+						Logger.Log($"Generating chunk geometry for chunk: {coords}");
 						chunk.generated = true; // Mark chunk as generated
 						GenerateChunk(coords);
 					}
@@ -294,10 +291,8 @@ public partial class TerrainGeneration : Node
 			}
 		});
 		generating = false; // Reset generating flag after generation is done
-		if (firstGeneration)
-		{
-			ChooseInitialSpawnPoint();
-		}
+
+		EventManager.Invoke(EventKeys.TERRAIN_GENERATION_COMPLETED);
 	}
 	void GenerateChunk(Vector3I chunkCoords)
 	{

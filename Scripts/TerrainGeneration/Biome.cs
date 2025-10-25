@@ -64,6 +64,15 @@ public partial class Biome : Resource
 		//noiseValue *= scalar; // Apply the scalar
 		//noiseValue += offset; // Apply the offset
 		//GD.Print($"Biome: {Name}, Noise Value: {noiseValue}, Scalar: {scalar}, Offset: {offset}");
+
+		if (noiseValue > 0)
+        {
+			noiseValue = .5f;
+		}
+		else
+		{
+			noiseValue = -.5f;
+		}
 		return noiseValue;
 	}
 }

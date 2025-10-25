@@ -8,14 +8,13 @@
 [sub_resource type="PlaneMesh" id="PlaneMesh_esld4"]
 size = Vector2(1000, 1000)
 
-[node name="Node3D" type="Node3D" node_paths=PackedStringArray("player")]
+[node name="Node3D" type="Node3D"]
 script = ExtResource("1_0d8tv")
 world = ExtResource("2_tkjes")
 chunkDistance = 1
 biomeBaseMaterial = ExtResource("8_j4raq")
-player = NodePath("Player")
 
-[node name="Player" parent="." node_paths=PackedStringArray("terrainGeneration", "sunBlocker") instance=ExtResource("6_qwlrs")]
+[node name="Player" parent="." node_paths=PackedStringArray("sunBlocker") instance=ExtResource("6_qwlrs")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
 airAcceleration = 0.1
 grapplePullSpeed = 20.0
@@ -23,7 +22,6 @@ grapplePullAcceleration = 1.0
 grappleAscendSpeed = 3.0
 climbingSpeed = 1.0
 terraformSpeed = 1.0
-terrainGeneration = NodePath("..")
 sunBlocker = NodePath("SunBlocker")
 
 [node name="SunBlocker" type="MeshInstance3D" parent="Player"]

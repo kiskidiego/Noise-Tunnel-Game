@@ -29,13 +29,11 @@ public partial class Player : CharacterBody3D
 	[Export] Node3D grappleOrigin; // Origin point for grappling hook
 	[Export] RayCast3D interactionRay;
 	[Export] RayCast3D hookRay; // Ray for grappling hook interaction
-	[Export] TerrainGeneration terrainGeneration;
 	[Export] MeshInstance3D grapplingHookMesh; // Mesh for the grappling hook
-	[Export] Control cameraCover;
-	[Export] ShapeCast3D positionValidator;
 	[Export] Node3D sunBlocker;
 	[Export] Node3D cameraRotatorH;
 	[Export] ShapeCast3D climbingValidator;
+	bool active;
 	bool isGrappleSwinging = false;
 	bool isGrapplePulling = false; // Flag to indicate if the player is currently pulling with the grappling hook
 	bool isGrappleAscending = false; // Flag to indicate if the player is currently ascending with the grappling hook
@@ -49,8 +47,14 @@ public partial class Player : CharacterBody3D
 		airSpeed = groundSpeed; // Initialize air speed to ground speed
 		grapplingHookMesh.Visible = false; // Hide the grappling hook mesh initially
 		Input.MouseMode = Input.MouseModeEnum.Captured;
-		terrainGeneration.GenerateFromWorldPosition(GlobalPosition);
-		ProcessMode = ProcessModeEnum.Disabled; // Disable process mode to avoid unnecessary processing
+	}
+	public override void _EnterTree()
+	{
+		EventManager.Subscribe(EventKeys.TERRAIN_GENERATION_COMPLETED, OnTerrainGenerationCompleted);
+	}
+	public override void _ExitTree()
+	{
+		EventManager.Unsubscribe(EventKeys.TERRAIN_GENERATION_COMPLETED, OnTerrainGenerationCompleted);
 	}
 	public override void _Input(InputEvent @event)
 	{
@@ -73,17 +77,28 @@ public partial class Player : CharacterBody3D
 
 		}
 	}
-	
-	public bool ValidatePosition()
+
+	void OnTerrainGenerationCompleted(EventParameters parameters)
 	{
-		return !positionValidator.IsColliding();
+		Activate();
+	}
+
+	public void Deactivate()
+	{
+		if (!active) return; // Already deactivated
+
+		active = false;
+		ProcessMode = ProcessModeEnum.Disabled; // Disable process mode to stop processing
+		Logger.Log("Player deactivated.");
 	}
 
 	public void Activate()
 	{
+		if (active) return; // Already activated
+
+		active = true;
 		ProcessMode = ProcessModeEnum.Inherit; // Enable process mode to allow processing
-		cameraCover.Visible = false; // Hide the camera cover when the player is activated
-		GD.Print("Player activated.");
+		Logger.Log("Player activated.");
 	}
 	public override void _PhysicsProcess(double delta)
 	{
@@ -240,7 +255,7 @@ public partial class Player : CharacterBody3D
 					grapplePoint = grapplePoint.lastGrapplePoint; // Revert to the last grapple point
 					return true; // Reverted to last grapple point successfully
 				}
-				//GD.Print("Grapple Normal check failed, not reverting to last grapple point.");
+				//Logger.Log("Grapple Normal check failed, not reverting to last grapple point.");
 			}
 		}
 		return true; // No issues with the current grapple point, continue grappling
@@ -284,7 +299,7 @@ public partial class Player : CharacterBody3D
 		{
 			velocity -= velocityAgainstGrapple * grappleDirection * pullFactor * pullFactor * pullFactor; // Set the player's velocity to swing around the grapple point
 		}
-		//GD.Print($"Grapple Direction: {grappleDirection}, Velocity Against Grapple: {velocityAgainstGrapple}, Pull Factor: {pullFactor}");
+		//Logger.Log($"Grapple Direction: {grappleDirection}, Velocity Against Grapple: {velocityAgainstGrapple}, Pull Factor: {pullFactor}");
 		return velocity;
 	}
 	Vector3 HandleGrapplePull(Vector3 velocity, double delta)
@@ -371,6 +386,7 @@ public partial class Player : CharacterBody3D
 		HandleGrapplingHookInput(delta);
 		HandleClimbingInput(delta);
 		sunBlocker.GlobalPosition = new Vector3(GlobalPosition.X, -10, GlobalPosition.Z); // Keep the sun blocker aligned with the player on the XZ plane
+		EventManager.Invoke(EventKeys.PLAYER_MOVED, new EventParameters().Add(EventParameterKeys.POSITION, GlobalPosition));
 	}
 	void HandleClimbingInput(double delta)
 	{
@@ -397,19 +413,19 @@ public partial class Player : CharacterBody3D
 	{
 		StopGrapplePull(); // Stop any grapple pulling when starting to climb
 		StopGrappleSwing(); // Stop any grapple swinging when starting to climb
-		GD.Print("Starting to climb");
+		Logger.Log("Starting to climb");
 		isClimbing = true;
 		
 		Vector3 oldRotation = new Vector3(GlobalRotation.X, GlobalRotation.Y, GlobalRotation.Z); // Store the old rotation
 		LookAt(GlobalPosition - climbingValidator.GetCollisionNormal(0));
-		GD.Print(climbingValidator.GetCollisionNormal(0));
+		Logger.Log("" + climbingValidator.GetCollisionNormal(0));
 		GlobalRotation = new Vector3(0, GlobalRotation.Y, 0); // Keep only the Y rotation
 		cameraRotatorH.GlobalRotation = oldRotation; // Align camera rotation with old player rotation
 		cameraRotatorH.Rotation = new Vector3(0, Mathf.Clamp(cameraRotatorH.Rotation.Y, -Mathf.Pi / 2, Mathf.Pi / 2), 0); // Keep only the Y rotation for the camera
 	}
 	void StopClimbing()
 	{
-		GD.Print("Stopping climbing");
+		Logger.Log("Stopping climbing");
 		isClimbing = false; // Reset climbing flag
 		GlobalRotation = cameraRotatorH.GlobalRotation; // Reset rotation to camera rotation when stopping climbing
 		cameraRotatorH.Rotation = Vector3.Zero; // Reset camera rotation when stopping climbing
@@ -421,7 +437,7 @@ public partial class Player : CharacterBody3D
 			if (interactionRay.IsColliding())
 			{
 				Vector3 collisionPoint = interactionRay.GetCollisionPoint();
-				terrainGeneration.TerraformAt(collisionPoint, terraformRadius, -terraformSpeed * (float)delta);
+				//terrainGeneration.TerraformAt(collisionPoint, terraformRadius, -terraformSpeed * (float)delta);
 			}
 		}
 		if (Input.IsActionPressed("Build"))
@@ -433,7 +449,7 @@ public partial class Player : CharacterBody3D
 				{
 					return; // Prevent building too close to the player
 				}
-				terrainGeneration.TerraformAt(collisionPoint, terraformRadius, terraformSpeed * (float)delta);
+				//terrainGeneration.TerraformAt(collisionPoint, terraformRadius, terraformSpeed * (float)delta);
 			}
 		}
 	}

@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="World" load_steps=7 format=3 uid="uid://bca4k2tb7kacp"]
 
 [ext_resource type="Resource" uid="uid://d4iw3l7lpgmyx" path="res://Resources/Biomes/Surface.tres" id="1_egw2s"]
-[ext_resource type="Resource" uid="uid://ci0805a3p3gdc" path="res://Resources/Biomes/PrismCoves.tres" id="2_b0qe7"]
+[ext_resource type="Resource" uid="uid://bsfxhl2eehq0j" path="res://Resources/Biomes/SpiralTunnels.tres" id="2_iyy3m"]
 [ext_resource type="Script" uid="uid://cp168tqvgibip" path="res://Scripts/TerrainGeneration/World.cs" id="3_qp8y1"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_81ihk"]
@@ -14,6 +14,6 @@
 script = ExtResource("3_qp8y1")
 chunkSize = Vector3i(18, 18, 18)
 biomeNoises = Array[FastNoiseLite]([SubResource("FastNoiseLite_81ihk"), SubResource("FastNoiseLite_ihoi0"), SubResource("FastNoiseLite_iaoxw")])
-biomes = Array[Object]([ExtResource("1_egw2s"), ExtResource("2_b0qe7")])
+biomes = Array[Object]([ExtResource("1_egw2s"), ExtResource("2_iyy3m")])
 ceiling = 0
 metadata/_custom_type_script = "uid://cp168tqvgibip"
